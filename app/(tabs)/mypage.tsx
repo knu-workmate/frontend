@@ -459,7 +459,7 @@ export default function MyPageScreen() {
   const handleLeaveWorkplace = () => {
     Alert.alert(
       '사업장 탈퇴',
-      '현재 소속된 사업장에서 탈퇴하시겠어요?\n계정은 삭제되지 않습니다.',
+      '현재 참여 중인 사업장에서 탈퇴하시겠어요?\n계정은 삭제되지 않습니다.',
       [
         { text: '취소', style: 'cancel' },
         {
@@ -496,7 +496,7 @@ export default function MyPageScreen() {
   const handleDeleteWorkplace = () => {
     Alert.alert(
       '사업장 삭제',
-      '사업장을 삭제하면 사업장 정보와 소속 직원 정보가 삭제될 수 있습니다.\n정말 삭제하시겠어요?',
+      '사업장을 삭제하면 사업장 정보와 소속 직원 정보가 삭제될 수 있습니다.\n계정은 삭제되지 않습니다.\n정말 삭제하시겠어요?',
       [
         { text: '취소', style: 'cancel' },
         {
@@ -523,6 +523,42 @@ export default function MyPageScreen() {
             } catch (error: any) {
               console.log('사업장 삭제 실패:', error.message);
               Alert.alert('삭제 실패', error.message || '다시 시도해주세요.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleWithdrawAccount = () => {
+    Alert.alert(
+      '회원탈퇴',
+      '회원탈퇴 시 계정이 완전히 삭제됩니다.\n소속된 사업장 정보도 함께 삭제되거나 사업장에서 퇴장 처리됩니다.\n정말 탈퇴하시겠어요?',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '회원탈퇴',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await apiRequest('/auth/withdraw', {
+                method: 'DELETE',
+              });
+
+              await deleteAccessToken();
+              await AsyncStorage.removeItem('avatarColor');
+
+              Alert.alert('완료', '회원탈퇴가 완료되었습니다.', [
+                {
+                  text: '확인',
+                  onPress: () => {
+                    router.replace('/role-select');
+                  },
+                },
+              ]);
+            } catch (error: any) {
+              console.log('회원탈퇴 실패:', error.message);
+              Alert.alert('탈퇴 실패', error.message || '다시 시도해주세요.');
             }
           },
         },
@@ -703,7 +739,7 @@ export default function MyPageScreen() {
                   <View style={styles.menuTextBox}>
                     <Text style={styles.withdrawMenuTitle}>사업장 삭제</Text>
                     <Text style={styles.menuDescription}>
-                      현재 사업장을 완전히 삭제합니다
+                      계정은 유지하고 현재 사업장만 삭제합니다
                     </Text>
                   </View>
                 </View>
@@ -728,7 +764,7 @@ export default function MyPageScreen() {
                   <View style={styles.menuTextBox}>
                     <Text style={styles.withdrawMenuTitle}>사업장 탈퇴</Text>
                     <Text style={styles.menuDescription}>
-                      현재 소속된 사업장에서 나갑니다
+                      계정은 유지하고 참여 중인 사업장에서 나갑니다
                     </Text>
                   </View>
                 </View>
@@ -737,6 +773,29 @@ export default function MyPageScreen() {
               </TouchableOpacity>
             </>
           )}
+
+          <View style={styles.divider} />
+
+          <TouchableOpacity
+            style={styles.menuRow}
+            activeOpacity={0.8}
+            onPress={handleWithdrawAccount}
+          >
+            <View style={styles.menuLeft}>
+              <View style={styles.withdrawIconCircle}>
+                <Ionicons name="person-remove-outline" size={18} color="#E24A4A" />
+              </View>
+
+              <View style={styles.menuTextBox}>
+                <Text style={styles.withdrawMenuTitle}>회원탈퇴</Text>
+                <Text style={styles.menuDescription}>
+                  계정 자체를 완전히 삭제합니다
+                </Text>
+              </View>
+            </View>
+
+            <Ionicons name="chevron-forward" size={20} color="#B7B7B7" />
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -762,7 +821,7 @@ export default function MyPageScreen() {
               </View>
 
               <Text style={styles.avatarHelpText}>
-                {role === '사장님' ? '사장님 픽토그램' : '알바생 픽토그램'}
+                {role === '사장님' ? '사장님' : '알바생 픽토그램'}
               </Text>
             </View>
 

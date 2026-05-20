@@ -167,15 +167,47 @@ export default function MyPageScreen() {
     return role === '사장님' ? 'briefcase-outline' : 'happy-outline';
   };
 
-  const loadSavedAvatarColor = async () => {
+  const getAvatarColorKey = (
+    profileUserId?: number | null,
+    profileEmail?: string
+  ) => {
+    if (profileUserId !== null && profileUserId !== undefined) {
+      return `avatarColor_${profileUserId}`;
+    }
+
+    if (profileEmail) {
+      return `avatarColor_${profileEmail}`;
+    }
+
+    return null;
+  };
+
+  const getCurrentAvatarColorKey = () => {
+    return getAvatarColorKey(userId, email);
+  };
+
+  const loadSavedAvatarColor = async (
+    profileUserId?: number | null,
+    profileEmail?: string
+  ) => {
     try {
-      const savedColor = await AsyncStorage.getItem('avatarColor');
+      const key = getAvatarColorKey(profileUserId, profileEmail);
+
+      if (!key) {
+        setAvatarColor(MAIN_COLOR);
+        return;
+      }
+
+      const savedColor = await AsyncStorage.getItem(key);
 
       if (savedColor) {
         setAvatarColor(savedColor);
+      } else {
+        setAvatarColor(MAIN_COLOR);
       }
     } catch (error) {
       console.log('프로필 색상 불러오기 실패:', error);
+      setAvatarColor(MAIN_COLOR);
     }
   };
 
@@ -200,9 +232,12 @@ export default function MyPageScreen() {
     try {
       const result = await apiRequest('/user/profile');
 
-      setUserId(result?.id ?? result?.userId ?? null);
+      const profileUserId = result?.id ?? result?.userId ?? null;
+      const profileEmail = result?.email ?? '';
+
+      setUserId(profileUserId);
       setNickname(result?.name ?? result?.nickname ?? '사용자');
-      setEmail(result?.email ?? '');
+      setEmail(profileEmail);
 
       setRole(
         getRoleText(
@@ -217,7 +252,7 @@ export default function MyPageScreen() {
       if (result?.avatarColor) {
         setAvatarColor(result.avatarColor);
       } else {
-        await loadSavedAvatarColor();
+        await loadSavedAvatarColor(profileUserId, profileEmail);
       }
     } catch (error: any) {
       console.log('프로필 조회 실패:', error.message);
@@ -312,7 +347,11 @@ export default function MyPageScreen() {
     }
 
     try {
-      await AsyncStorage.setItem('avatarColor', tempAvatarColor);
+      const key = getCurrentAvatarColorKey();
+
+      if (key) {
+        await AsyncStorage.setItem(key, tempAvatarColor);
+      }
 
       setNickname(tempNickname.trim());
       setAvatarColor(tempAvatarColor);
@@ -545,8 +584,13 @@ export default function MyPageScreen() {
                 method: 'DELETE',
               });
 
+              const key = getCurrentAvatarColorKey();
+
+              if (key) {
+                await AsyncStorage.removeItem(key);
+              }
+
               await deleteAccessToken();
-              await AsyncStorage.removeItem('avatarColor');
 
               Alert.alert('완료', '회원탈퇴가 완료되었습니다.', [
                 {
@@ -861,7 +905,11 @@ export default function MyPageScreen() {
                 <Text style={styles.cancelButtonText}>취소</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.confirmButton} onPress={saveProfile} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={styles.confirmButton}
+                onPress={saveProfile}
+                activeOpacity={0.8}
+              >
                 <Text style={styles.confirmButtonText}>저장</Text>
               </TouchableOpacity>
             </View>
@@ -1095,7 +1143,11 @@ export default function MyPageScreen() {
                 <Text style={styles.cancelButtonText}>취소</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.confirmButton} onPress={changePassword} activeOpacity={0.8}>
+              <TouchableOpacity
+                style={styles.confirmButton}
+                onPress={changePassword}
+                activeOpacity={0.8}
+              >
                 <Text style={styles.confirmButtonText}>변경</Text>
               </TouchableOpacity>
             </View>

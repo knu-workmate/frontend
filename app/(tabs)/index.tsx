@@ -77,9 +77,34 @@ export default function HomeScreen() {
     return '알바생';
   };
 
-  const loadAvatarColor = async () => {
+  const getAvatarColorKey = (
+    profileUserId?: number | null,
+    profileEmail?: string
+  ) => {
+    if (profileUserId !== null && profileUserId !== undefined) {
+      return `avatarColor_${profileUserId}`;
+    }
+
+    if (profileEmail) {
+      return `avatarColor_${profileEmail}`;
+    }
+
+    return null;
+  };
+
+  const loadAvatarColor = async (
+    profileUserId?: number | null,
+    profileEmail?: string
+  ) => {
     try {
-      const savedColor = await AsyncStorage.getItem('avatarColor');
+      const key = getAvatarColorKey(profileUserId, profileEmail);
+
+      if (!key) {
+        setAvatarColor(MAIN_COLOR);
+        return;
+      }
+
+      const savedColor = await AsyncStorage.getItem(key);
 
       if (savedColor !== null) {
         setAvatarColor(savedColor);
@@ -88,6 +113,7 @@ export default function HomeScreen() {
       }
     } catch (e) {
       console.log('색상 불러오기 오류:', e);
+      setAvatarColor(MAIN_COLOR);
     }
   };
 
@@ -96,6 +122,9 @@ export default function HomeScreen() {
 
     try {
       const profileResult = await apiRequest('/user/profile');
+
+      const profileUserId = profileResult?.id ?? profileResult?.userId ?? null;
+      const profileEmail = profileResult?.email ?? '';
 
       setUserData((prev) => ({
         ...prev,
@@ -108,8 +137,15 @@ export default function HomeScreen() {
             profileResult?.admin
         ),
       }));
+
+      if (profileResult?.avatarColor) {
+        setAvatarColor(profileResult.avatarColor);
+      } else {
+        await loadAvatarColor(profileUserId, profileEmail);
+      }
     } catch (error: any) {
       console.log('프로필 조회 실패:', error.message);
+      setAvatarColor(MAIN_COLOR);
     }
 
     try {
@@ -193,13 +229,11 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
-    loadAvatarColor();
     loadHomeData();
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      loadAvatarColor();
       loadHomeData();
     }, [])
   );

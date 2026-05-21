@@ -1,92 +1,99 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   SafeAreaView, View, Text, StyleSheet, TouchableOpacity,
   ScrollView, TextInput, Alert, Modal, Pressable,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
+import { apiRequest } from '../../utils/api';
 
 type ManualItem = {
-  id: string;
-  description: string;
+  id: number;
+  content: string;
+  createdAt: string;
 };
 
 type ManualCategory = {
-  id: string;
+  manualId: number;
   title: string;
+  role: string;
+  manuals: ManualItem[];
   isExpanded: boolean;
-  items: ManualItem[];
 };
 
 const MAIN_COLOR = '#2140DC';
-const LIGHT_COLOR = '#EEF1FF';
 
 export default function ManualScreen() {
-  const router = useRouter();
-
-  const [categories, setCategories] = useState<ManualCategory[]>([
-    {
-      id: '1',
-      title: '고객 응대',
-      isExpanded: false,
-      items: [
-        { id: '1-1', description: '고객 입장 시 밝게 인사하기' },
-        { id: '1-2', description: '고객 불만은 즉시 매니저에게 보고' },
-        { id: '1-3', description: '주문 후 반드시 복창 확인' },
-        { id: '1-4', description: '영수증은 고객에게 먼저 제공' },
-      ],
-    },
-    {
-      id: '2',
-      title: '포스기 사용법',
-      isExpanded: false,
-      items: [
-        { id: '2-1', description: '카드/현금 결제 방법' },
-        { id: '2-2', description: '주문 취소 시 관리자 승인 필요' },
-        { id: '2-3', description: '영업 종료 후 일일 마감 필수' },
-      ],
-    },
-    {
-      id: '3',
-      title: '메뉴 안내',
-      isExpanded: true,
-      items: [
-        { id: '3-1', description: '라떼에 우유는 오트, 아몬드로 무료 변경 가능' },
-        { id: '3-2', description: '메뉴 간 샷 이동은 불가. 샷추가 해야함.' },
-      ],
-    },
-  ]);
+  const [categories, setCategories] = useState<ManualCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [myRole, setMyRole] = useState<string>('WORKER');
 
   // 검색
   const [searchText, setSearchText] = useState('');
   const [isSearchVisible, setIsSearchVisible] = useState(false);
 
   // 점 세개 메뉴
-  const [openCategoryMenuId, setOpenCategoryMenuId] = useState<string | null>(null);
-  const [openItemMenuId, setOpenItemMenuId] = useState<string | null>(null);
+  const [openCategoryMenuId, setOpenCategoryMenuId] = useState<number | null>(null);
+  const [openItemMenuId, setOpenItemMenuId] = useState<number | null>(null);
 
   // 대분류 추가 모달
   const [isAddCategoryVisible, setIsAddCategoryVisible] = useState(false);
   const [newCategoryTitle, setNewCategoryTitle] = useState('');
+  const [addCategoryLoading, setAddCategoryLoading] = useState(false);
 
   // 소분류 추가 모달
   const [isAddItemVisible, setIsAddItemVisible] = useState(false);
-  const [addItemCategoryId, setAddItemCategoryId] = useState('');
-  const [newItemDescription, setNewItemDescription] = useState('');
+  const [addItemCategoryId, setAddItemCategoryId] = useState<number | null>(null);
+  const [addItemCategoryName, setAddItemCategoryName] = useState('');
+  const [newItemContent, setNewItemContent] = useState('');
+  const [addItemLoading, setAddItemLoading] = useState(false);
 
   // 대분류 수정 모달
   const [isEditCategoryVisible, setIsEditCategoryVisible] = useState(false);
-  const [editCategoryId, setEditCategoryId] = useState('');
+  const [editCategoryId, setEditCategoryId] = useState<number | null>(null);
   const [editCategoryTitle, setEditCategoryTitle] = useState('');
+  const [editCategoryLoading, setEditCategoryLoading] = useState(false);
 
   // 소분류 수정 모달
   const [isEditItemVisible, setIsEditItemVisible] = useState(false);
-  const [editItemCategoryId, setEditItemCategoryId] = useState('');
-  const [editItemId, setEditItemId] = useState('');
-  const [editItemDescription, setEditItemDescription] = useState('');
+  const [editItemId, setEditItemId] = useState<number | null>(null);
+  const [editItemCategoryId, setEditItemCategoryId] = useState<number | null>(null);
+  const [editItemContent, setEditItemContent] = useState('');
+  const [editItemLoading, setEditItemLoading] = useState(false);
 
-  // 검색 필터링
+  const fetchManuals = async () => {
+    setLoading(true);
+    try {
+      const result = await apiRequest('/manuals/categoriesAndManuals');
+      const mapped: ManualCategory[] = (Array.isArray(result) ? result : []).map((item: any) => ({
+        manualId: item.manualId,
+        title: item.title,
+        role: item.role,
+        manuals: item.manuals ?? [],
+        isExpanded: false,
+      }));
+      setCategories(mapped);
+      if (mapped.length > 0) setMyRole(mapped[0].role);
+    } catch (e: any) {
+      Alert.alert('오류', '매뉴얼을 불러오지 못했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchManuals();
+    }, [])
+  );
+
+  const toggleCategory = (id: number) => {
+    setCategories(prev =>
+      prev.map(cat => cat.manualId === id ? { ...cat, isExpanded: !cat.isExpanded } : cat)
+    );
+  };
+
   const filteredCategories = useMemo(() => {
     if (!searchText.trim()) return categories;
     const keyword = searchText.toLowerCase();
@@ -94,116 +101,148 @@ export default function ManualScreen() {
       .map(cat => ({
         ...cat,
         isExpanded: true,
-        items: cat.items.filter(item =>
-          item.description.toLowerCase().includes(keyword)
+        manuals: cat.manuals.filter(item =>
+          item.content.toLowerCase().includes(keyword)
         ),
       }))
       .filter(cat =>
-        cat.title.toLowerCase().includes(keyword) || cat.items.length > 0
+        cat.title.toLowerCase().includes(keyword) || cat.manuals.length > 0
       );
   }, [categories, searchText]);
 
-  const toggleCategory = (id: string) => {
-    setCategories(prev =>
-      prev.map(cat => cat.id === id ? { ...cat, isExpanded: !cat.isExpanded } : cat)
-    );
-  };
-
   // 대분류 추가
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     if (!newCategoryTitle.trim()) return;
-    setCategories(prev => [...prev, {
-      id: Date.now().toString(),
-      title: newCategoryTitle.trim(),
-      isExpanded: true,
-      items: [],
-    }]);
-    setNewCategoryTitle('');
-    setIsAddCategoryVisible(false);
+    setAddCategoryLoading(true);
+    try {
+      await apiRequest('/manuals/categories', {
+        method: 'POST',
+        body: JSON.stringify({ name: newCategoryTitle.trim() }),
+      });
+      setNewCategoryTitle('');
+      setIsAddCategoryVisible(false);
+      await fetchManuals();
+    } catch (e: any) {
+      Alert.alert('오류', '카테고리 생성에 실패했습니다.');
+    } finally {
+      setAddCategoryLoading(false);
+    }
   };
 
   // 대분류 수정
-  const handleEditCategory = () => {
-    if (!editCategoryTitle.trim()) return;
-    setCategories(prev =>
-      prev.map(cat =>
-        cat.id === editCategoryId
-          ? { ...cat, title: editCategoryTitle.trim() }
-          : cat
-      )
-    );
-    setIsEditCategoryVisible(false);
+  const handleEditCategory = async () => {
+    if (!editCategoryTitle.trim() || !editCategoryId) return;
+    setEditCategoryLoading(true);
+    try {
+      await apiRequest(`/manuals/categories/${editCategoryId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: editCategoryTitle.trim() }),
+      });
+      setIsEditCategoryVisible(false);
+      await fetchManuals();
+    } catch (e: any) {
+      Alert.alert('오류', '카테고리 수정에 실패했습니다.');
+    } finally {
+      setEditCategoryLoading(false);
+    }
   };
 
   // 대분류 삭제
-  const handleDeleteCategory = (id: string) => {
+  const handleDeleteCategory = (id: number) => {
     setOpenCategoryMenuId(null);
-    Alert.alert('대분류 삭제', '이 카테고리와 모든 항목을 삭제하시겠습니까?', [
+    Alert.alert('카테고리 삭제', '이 카테고리와 모든 항목을 삭제하시겠습니까?', [
       { text: '취소', style: 'cancel' },
       {
         text: '삭제', style: 'destructive',
-        onPress: () => setCategories(prev => prev.filter(cat => cat.id !== id)),
+        onPress: async () => {
+          try {
+            await apiRequest(`/manuals/categories/${id}`, { method: 'DELETE' });
+            await fetchManuals();
+          } catch (e: any) {
+            Alert.alert('오류', '카테고리 삭제에 실패했습니다.');
+          }
+        },
       },
     ]);
   };
 
   // 소분류 추가
-  const handleAddItem = () => {
-    if (!newItemDescription.trim()) return;
-    setCategories(prev =>
-      prev.map(cat =>
-        cat.id === addItemCategoryId
-          ? { ...cat, items: [...cat.items, { id: Date.now().toString(), description: newItemDescription.trim() }] }
-          : cat
-      )
-    );
-    setNewItemDescription('');
-    setIsAddItemVisible(false);
+  const handleAddItem = async () => {
+    if (!newItemContent.trim() || !addItemCategoryId) return;
+    setAddItemLoading(true);
+    try {
+      await apiRequest('/manuals/manuals', {
+        method: 'POST',
+        body: JSON.stringify({
+          content: newItemContent.trim(),
+          categoryId: addItemCategoryId,
+        }),
+      });
+      setNewItemContent('');
+      setIsAddItemVisible(false);
+      await fetchManuals();
+    } catch (e: any) {
+      Alert.alert('오류', '매뉴얼 추가에 실패했습니다.');
+    } finally {
+      setAddItemLoading(false);
+    }
   };
 
   // 소분류 수정
-  const handleEditItem = () => {
-    if (!editItemDescription.trim()) return;
-    setCategories(prev =>
-      prev.map(cat =>
-        cat.id === editItemCategoryId
-          ? {
-              ...cat,
-              items: cat.items.map(item =>
-                item.id === editItemId
-                  ? { ...item, description: editItemDescription.trim() }
-                  : item
-              ),
-            }
-          : cat
-      )
-    );
-    setIsEditItemVisible(false);
+  const handleEditItem = async () => {
+    if (!editItemContent.trim() || !editItemId || !editItemCategoryId) return;
+    setEditItemLoading(true);
+    try {
+      await apiRequest(`/manuals/manuals/${editItemId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          content: editItemContent.trim(),
+          categoryId: editItemCategoryId,
+        }),
+      });
+      setIsEditItemVisible(false);
+      await fetchManuals();
+    } catch (e: any) {
+      Alert.alert('오류', '매뉴얼 수정에 실패했습니다.');
+    } finally {
+      setEditItemLoading(false);
+    }
   };
 
   // 소분류 삭제
-  const handleDeleteItem = (categoryId: string, itemId: string) => {
+  const handleDeleteItem = (itemId: number) => {
     setOpenItemMenuId(null);
-    Alert.alert('항목 삭제', '이 항목을 삭제하시겠습니까?', [
+    Alert.alert('매뉴얼 삭제', '이 항목을 삭제하시겠습니까?', [
       { text: '취소', style: 'cancel' },
       {
         text: '삭제', style: 'destructive',
-        onPress: () =>
-          setCategories(prev =>
-            prev.map(cat =>
-              cat.id === categoryId
-                ? { ...cat, items: cat.items.filter(item => item.id !== itemId) }
-                : cat
-            )
-          ),
+        onPress: async () => {
+          try {
+            await apiRequest(`/manuals/manuals/${itemId}`, { method: 'DELETE' });
+            await fetchManuals();
+          } catch (e: any) {
+            Alert.alert('오류', '매뉴얼 삭제에 실패했습니다.');
+          }
+        },
       },
     ]);
   };
 
+  const isAdmin = myRole === 'ADMIN';
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={MAIN_COLOR} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* 바깥 클릭 시 메뉴 닫기 */}
-      {(openCategoryMenuId || openItemMenuId) && (
+      {(openCategoryMenuId !== null || openItemMenuId !== null) && (
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={() => {
@@ -257,146 +296,8 @@ export default function ManualScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {filteredCategories.map((category) => (
-          <View
-            key={category.id}
-            style={[styles.categoryBlock, { zIndex: openCategoryMenuId === category.id ? 999 : 1 }]}
-          >
-            {/* 대분류 행 */}
-            <TouchableOpacity
-              style={styles.categoryRow}
-              onPress={() => toggleCategory(category.id)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.categoryLeft}>
-                <View style={styles.categoryIconCircle}>
-                  <Ionicons name="document-text-outline" size={15} color={MAIN_COLOR} />
-                </View>
-                <Text style={styles.categoryTitle}>{category.title}</Text>
-                <View style={styles.countBadge}>
-                  <Text style={styles.countBadgeText}>{category.items.length}</Text>
-                </View>
-              </View>
-
-              <View style={styles.categoryRight}>
-                <Ionicons
-                  name={category.isExpanded ? 'chevron-up' : 'chevron-down'}
-                  size={18}
-                  color="#888"
-                />
-                {/* 대분류 점 세개 */}
-                <TouchableOpacity
-                  style={styles.menuDotBtn}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    setOpenCategoryMenuId(openCategoryMenuId === category.id ? null : category.id);
-                    setOpenItemMenuId(null);
-                  }}
-                >
-                  <Ionicons name="ellipsis-vertical" size={16} color="#888" />
-                </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-
-            {/* 대분류 드롭다운 메뉴 */}
-            {openCategoryMenuId === category.id && (
-              <View style={styles.categoryDropdown}>
-                <TouchableOpacity
-                  style={styles.dropdownItem}
-                  onPress={() => {
-                    setOpenCategoryMenuId(null);
-                    setEditCategoryId(category.id);
-                    setEditCategoryTitle(category.title);
-                    setIsEditCategoryVisible(true);
-                  }}
-                >
-                  <Ionicons name="pencil-outline" size={15} color={MAIN_COLOR} />
-                  <Text style={styles.dropdownItemText}>수정</Text>
-                </TouchableOpacity>
-                <View style={styles.dropdownDivider} />
-                <TouchableOpacity
-                  style={styles.dropdownItem}
-                  onPress={() => handleDeleteCategory(category.id)}
-                >
-                  <Ionicons name="trash-outline" size={15} color="#FF3B30" />
-                  <Text style={[styles.dropdownItemText, { color: '#FF3B30' }]}>삭제</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* 소분류 목록 */}
-            {category.isExpanded && (
-              <View style={styles.itemList}>
-                {category.items.map((item) => (
-                  <View
-                    key={item.id}
-                    style={[styles.itemRow, { zIndex: openItemMenuId === item.id ? 999 : 1 }]}
-                  >
-                    <Text style={styles.itemDescription}>{item.description}</Text>
-
-                    {/* 소분류 점 세개 */}
-                    <View style={{ position: 'relative' }}>
-                      <TouchableOpacity
-                        style={styles.menuDotBtn}
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          setOpenItemMenuId(openItemMenuId === item.id ? null : item.id);
-                          setOpenCategoryMenuId(null);
-                        }}
-                      >
-                        <Ionicons name="ellipsis-vertical" size={16} color="#888" />
-                      </TouchableOpacity>
-
-                      {/* 소분류 드롭다운 */}
-                      {openItemMenuId === item.id && (
-                        <View style={styles.itemDropdown}>
-                          <TouchableOpacity
-                            style={styles.dropdownItem}
-                            onPress={() => {
-                              setOpenItemMenuId(null);
-                              setEditItemCategoryId(category.id);
-                              setEditItemId(item.id);
-                              setEditItemDescription(item.description);
-                              setIsEditItemVisible(true);
-                            }}
-                          >
-                            <Ionicons name="pencil-outline" size={15} color={MAIN_COLOR} />
-                            <Text style={styles.dropdownItemText}>수정</Text>
-                          </TouchableOpacity>
-                          <View style={styles.dropdownDivider} />
-                          <TouchableOpacity
-                            style={styles.dropdownItem}
-                            onPress={() => handleDeleteItem(category.id, item.id)}
-                          >
-                            <Ionicons name="trash-outline" size={15} color="#FF3B30" />
-                            <Text style={[styles.dropdownItemText, { color: '#FF3B30' }]}>삭제</Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                ))}
-
-                {/* 소분류 추가 버튼 */}
-                <TouchableOpacity
-                  style={styles.addItemBtn}
-                  onPress={() => {
-                    setAddItemCategoryId(category.id);
-                    setNewItemDescription('');
-                    setIsAddItemVisible(true);
-                  }}
-                >
-                  <Ionicons name="add" size={18} color="#AAAAAA" />
-                </TouchableOpacity>
-              </View>
-            )}
-
-            <View style={styles.divider} />
-          </View>
-        ))}
-
-        {/* 검색 중일 때는 대분류 추가 버튼 숨김 */}
-        {!searchText.trim() && (
+        {/* ADMIN만 대분류 추가 버튼 - 상단 */}
+        {isAdmin && !searchText.trim() && (
           <>
             <TouchableOpacity
               style={styles.addCategoryBtn}
@@ -410,15 +311,160 @@ export default function ManualScreen() {
             <View style={styles.divider} />
           </>
         )}
+
+        {/* 카테고리 목록 */}
+        {filteredCategories.length === 0 ? (
+          // 빈 상태 화면
+          <View style={styles.emptyContainer}>
+            <Ionicons name="document-text-outline" size={52} color="#CCCCCC" />
+            <Text style={styles.emptyText}>
+              {searchText ? '검색 결과가 없습니다.' : '등록된 매뉴얼이 없습니다.'}
+            </Text>
+          </View>
+        ) : (
+          filteredCategories.map((category) => (
+            <View
+              key={category.manualId}
+              style={[styles.categoryBlock, { zIndex: openCategoryMenuId === category.manualId ? 999 : 1 }]}
+            >
+              {/* 대분류 행 */}
+              <TouchableOpacity
+                style={styles.categoryRow}
+                onPress={() => toggleCategory(category.manualId)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.categoryLeft}>
+                  <Text style={styles.categoryTitle}>{category.title}</Text>
+                  <View style={styles.countBadge}>
+                    <Text style={styles.countBadgeText}>{category.manuals.length}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.categoryRight}>
+                  <Ionicons
+                    name={category.isExpanded ? 'chevron-up' : 'chevron-down'}
+                    size={18}
+                    color="#888"
+                  />
+                  {isAdmin && (
+                    <TouchableOpacity
+                      style={styles.menuDotBtn}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        setOpenCategoryMenuId(openCategoryMenuId === category.manualId ? null : category.manualId);
+                        setOpenItemMenuId(null);
+                      }}
+                    >
+                      <Ionicons name="ellipsis-vertical" size={16} color="#888" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </TouchableOpacity>
+
+              {/* 대분류 드롭다운 메뉴 */}
+              {openCategoryMenuId === category.manualId && (
+                <View style={styles.categoryDropdown}>
+                  <TouchableOpacity
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setOpenCategoryMenuId(null);
+                      setEditCategoryId(category.manualId);
+                      setEditCategoryTitle(category.title);
+                      setIsEditCategoryVisible(true);
+                    }}
+                  >
+                    <Ionicons name="pencil-outline" size={15} color={MAIN_COLOR} />
+                    <Text style={styles.dropdownItemText}>수정</Text>
+                  </TouchableOpacity>
+                  <View style={styles.dropdownDivider} />
+                  <TouchableOpacity
+                    style={styles.dropdownItem}
+                    onPress={() => handleDeleteCategory(category.manualId)}
+                  >
+                    <Ionicons name="trash-outline" size={15} color="#FF3B30" />
+                    <Text style={[styles.dropdownItemText, { color: '#FF3B30' }]}>삭제</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* 소분류 목록 */}
+              {category.isExpanded && (
+                <View style={styles.itemList}>
+                  {category.manuals.map((item) => (
+                    <View
+                      key={item.id}
+                      style={[styles.itemRow, { zIndex: openItemMenuId === item.id ? 999 : 1 }]}
+                    >
+                      <Text style={styles.itemContent}>{item.content}</Text>
+                      {isAdmin && (
+                        <View style={{ position: 'relative' }}>
+                          <TouchableOpacity
+                            style={styles.menuDotBtn}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              setOpenItemMenuId(openItemMenuId === item.id ? null : item.id);
+                              setOpenCategoryMenuId(null);
+                            }}
+                          >
+                            <Ionicons name="ellipsis-vertical" size={16} color="#888" />
+                          </TouchableOpacity>
+                          {openItemMenuId === item.id && (
+                            <View style={styles.itemDropdown}>
+                              <TouchableOpacity
+                                style={styles.dropdownItem}
+                                onPress={() => {
+                                  setOpenItemMenuId(null);
+                                  setEditItemId(item.id);
+                                  setEditItemCategoryId(category.manualId);
+                                  setEditItemContent(item.content);
+                                  setIsEditItemVisible(true);
+                                }}
+                              >
+                                <Ionicons name="pencil-outline" size={15} color={MAIN_COLOR} />
+                                <Text style={styles.dropdownItemText}>수정</Text>
+                              </TouchableOpacity>
+                              <View style={styles.dropdownDivider} />
+                              <TouchableOpacity
+                                style={styles.dropdownItem}
+                                onPress={() => handleDeleteItem(item.id)}
+                              >
+                                <Ionicons name="trash-outline" size={15} color="#FF3B30" />
+                                <Text style={[styles.dropdownItemText, { color: '#FF3B30' }]}>삭제</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  ))}
+
+                  {/* ADMIN만 소분류 추가 버튼 */}
+                  {isAdmin && (
+                    <TouchableOpacity
+                      style={styles.addItemBtn}
+                      onPress={() => {
+                        setAddItemCategoryId(category.manualId);
+                        setAddItemCategoryName(category.title);
+                        setNewItemContent('');
+                        setIsAddItemVisible(true);
+                      }}
+                    >
+                      <Ionicons name="add" size={18} color="#AAAAAA" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
+              <View style={styles.divider} />
+            </View>
+          ))
+        )}
       </ScrollView>
 
       {/* ===== 대분류 추가 모달 ===== */}
       <Modal visible={isAddCategoryVisible} transparent animationType="slide">
         <Pressable style={styles.modalBackdrop} onPress={() => setIsAddCategoryVisible(false)} />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalSlide}
-        >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalSlide}>
           <View style={styles.modalSlideContent}>
             <View style={styles.modalSlideHeader}>
               <TouchableOpacity onPress={() => setIsAddCategoryVisible(false)}>
@@ -427,9 +473,7 @@ export default function ManualScreen() {
               <Text style={styles.modalSlideTitle}>카테고리 추가</Text>
               <View style={{ width: 24 }} />
             </View>
-
             <Text style={styles.sectionBigTitle}>카테고리 추가</Text>
-
             <Text style={styles.inputLabel}>*카테고리 이름</Text>
             <TextInput
               style={[styles.textInput, styles.textInputActive]}
@@ -439,13 +483,15 @@ export default function ManualScreen() {
               onChangeText={setNewCategoryTitle}
               autoFocus
             />
-
             <TouchableOpacity
-              style={[styles.confirmBtn, !newCategoryTitle.trim() && { backgroundColor: '#BDBDBD' }]}
+              style={[styles.confirmBtn, (!newCategoryTitle.trim() || addCategoryLoading) && { backgroundColor: '#BDBDBD' }]}
               onPress={handleAddCategory}
-              disabled={!newCategoryTitle.trim()}
+              disabled={!newCategoryTitle.trim() || addCategoryLoading}
             >
-              <Text style={styles.confirmBtnText}>확인</Text>
+              {addCategoryLoading
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.confirmBtnText}>확인</Text>
+              }
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -454,10 +500,7 @@ export default function ManualScreen() {
       {/* ===== 대분류 수정 모달 ===== */}
       <Modal visible={isEditCategoryVisible} transparent animationType="slide">
         <Pressable style={styles.modalBackdrop} onPress={() => setIsEditCategoryVisible(false)} />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalSlide}
-        >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalSlide}>
           <View style={styles.modalSlideContent}>
             <View style={styles.modalSlideHeader}>
               <TouchableOpacity onPress={() => setIsEditCategoryVisible(false)}>
@@ -466,9 +509,7 @@ export default function ManualScreen() {
               <Text style={styles.modalSlideTitle}>카테고리 수정</Text>
               <View style={{ width: 24 }} />
             </View>
-
             <Text style={styles.sectionBigTitle}>카테고리 수정</Text>
-
             <Text style={styles.inputLabel}>*카테고리 이름</Text>
             <TextInput
               style={[styles.textInput, styles.textInputActive]}
@@ -478,13 +519,15 @@ export default function ManualScreen() {
               onChangeText={setEditCategoryTitle}
               autoFocus
             />
-
             <TouchableOpacity
-              style={[styles.confirmBtn, !editCategoryTitle.trim() && { backgroundColor: '#BDBDBD' }]}
+              style={[styles.confirmBtn, (!editCategoryTitle.trim() || editCategoryLoading) && { backgroundColor: '#BDBDBD' }]}
               onPress={handleEditCategory}
-              disabled={!editCategoryTitle.trim()}
+              disabled={!editCategoryTitle.trim() || editCategoryLoading}
             >
-              <Text style={styles.confirmBtnText}>확인</Text>
+              {editCategoryLoading
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.confirmBtnText}>확인</Text>
+              }
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -493,10 +536,7 @@ export default function ManualScreen() {
       {/* ===== 소분류 추가 모달 ===== */}
       <Modal visible={isAddItemVisible} transparent animationType="slide">
         <Pressable style={styles.modalBackdrop} onPress={() => setIsAddItemVisible(false)} />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalSlide}
-        >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalSlide}>
           <View style={styles.modalSlideContent}>
             <View style={styles.modalSlideHeader}>
               <TouchableOpacity onPress={() => setIsAddItemVisible(false)}>
@@ -505,33 +545,30 @@ export default function ManualScreen() {
               <Text style={styles.modalSlideTitle}>매뉴얼 추가</Text>
               <View style={{ width: 24 }} />
             </View>
-
             <Text style={styles.sectionBigTitle}>매뉴얼 추가</Text>
-
             <Text style={styles.inputLabel}>*카테고리</Text>
             <View style={styles.categorySelectDisplay}>
-              <Text style={styles.categorySelectText}>
-                {categories.find(c => c.id === addItemCategoryId)?.title ?? ''}
-              </Text>
+              <Text style={styles.categorySelectText}>{addItemCategoryName}</Text>
             </View>
-
             <Text style={styles.inputLabel}>*설명</Text>
             <TextInput
               style={[styles.textInput, { minHeight: 100, textAlignVertical: 'top' }]}
               placeholder="매뉴얼 내용을 입력하세요"
               placeholderTextColor="#BDBDBD"
-              value={newItemDescription}
-              onChangeText={setNewItemDescription}
+              value={newItemContent}
+              onChangeText={setNewItemContent}
               multiline
               autoFocus
             />
-
             <TouchableOpacity
-              style={[styles.confirmBtn, !newItemDescription.trim() && { backgroundColor: '#BDBDBD' }]}
+              style={[styles.confirmBtn, (!newItemContent.trim() || addItemLoading) && { backgroundColor: '#BDBDBD' }]}
               onPress={handleAddItem}
-              disabled={!newItemDescription.trim()}
+              disabled={!newItemContent.trim() || addItemLoading}
             >
-              <Text style={styles.confirmBtnText}>확인</Text>
+              {addItemLoading
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.confirmBtnText}>확인</Text>
+              }
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -540,10 +577,7 @@ export default function ManualScreen() {
       {/* ===== 소분류 수정 모달 ===== */}
       <Modal visible={isEditItemVisible} transparent animationType="slide">
         <Pressable style={styles.modalBackdrop} onPress={() => setIsEditItemVisible(false)} />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalSlide}
-        >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalSlide}>
           <View style={styles.modalSlideContent}>
             <View style={styles.modalSlideHeader}>
               <TouchableOpacity onPress={() => setIsEditItemVisible(false)}>
@@ -552,26 +586,26 @@ export default function ManualScreen() {
               <Text style={styles.modalSlideTitle}>매뉴얼 수정</Text>
               <View style={{ width: 24 }} />
             </View>
-
             <Text style={styles.sectionBigTitle}>매뉴얼 수정</Text>
-
             <Text style={styles.inputLabel}>*설명</Text>
             <TextInput
               style={[styles.textInput, { minHeight: 100, textAlignVertical: 'top' }]}
               placeholder="매뉴얼 내용"
               placeholderTextColor="#BDBDBD"
-              value={editItemDescription}
-              onChangeText={setEditItemDescription}
+              value={editItemContent}
+              onChangeText={setEditItemContent}
               multiline
               autoFocus
             />
-
             <TouchableOpacity
-              style={[styles.confirmBtn, !editItemDescription.trim() && { backgroundColor: '#BDBDBD' }]}
+              style={[styles.confirmBtn, (!editItemContent.trim() || editItemLoading) && { backgroundColor: '#BDBDBD' }]}
               onPress={handleEditItem}
-              disabled={!editItemDescription.trim()}
+              disabled={!editItemContent.trim() || editItemLoading}
             >
-              <Text style={styles.confirmBtnText}>확인</Text>
+              {editItemLoading
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.confirmBtnText}>확인</Text>
+              }
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -582,33 +616,47 @@ export default function ManualScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111' },
   searchIconBtn: { width: 36, alignItems: 'flex-end' },
   searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 10, marginHorizontal: 20, marginTop: 10, marginBottom: 4, paddingHorizontal: 12, height: 42, gap: 8 },
   searchInput: { flex: 1, fontSize: 15, color: '#333' },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 100 },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 100 },
+
+  // 빈 상태
+  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 80, gap: 12 },
+  emptyText: { fontSize: 14, color: '#AAAAAA' },
+
+  // 대분류 추가 버튼
+  addCategoryBtn: { alignItems: 'center', justifyContent: 'center', paddingVertical: 14 },
+  divider: { height: 1, backgroundColor: '#F0F0F0', marginVertical: 4 },
+
+  // 카테고리
   categoryBlock: { marginBottom: 0, position: 'relative' },
   categoryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14 },
   categoryLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 },
-  categoryIconCircle: { width: 30, height: 30, borderRadius: 15, backgroundColor: LIGHT_COLOR, justifyContent: 'center', alignItems: 'center' },
   categoryTitle: { fontSize: 15, fontWeight: '600', color: '#222' },
   countBadge: { backgroundColor: MAIN_COLOR, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, minWidth: 22, alignItems: 'center' },
   countBadgeText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
   categoryRight: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   menuDotBtn: { padding: 6 },
   categoryDropdown: { position: 'absolute', right: 0, top: 50, backgroundColor: '#FFF', borderRadius: 10, borderWidth: 1, borderColor: '#EFEFEF', zIndex: 100, elevation: 10, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, minWidth: 100 },
+
+  // 소분류
   itemList: { paddingLeft: 4, paddingBottom: 4 },
   itemRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 14, marginBottom: 8, position: 'relative' },
-  itemDescription: { fontSize: 14, color: '#333', flex: 1, lineHeight: 20 },
+  itemContent: { fontSize: 14, color: '#333', flex: 1, lineHeight: 20 },
   itemDropdown: { position: 'absolute', right: 0, top: 28, backgroundColor: '#FFF', borderRadius: 10, borderWidth: 1, borderColor: '#EFEFEF', zIndex: 100, elevation: 10, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, minWidth: 100 },
+  addItemBtn: { alignItems: 'center', justifyContent: 'center', paddingVertical: 10, backgroundColor: '#F7F8FF', borderRadius: 10, marginBottom: 8 },
+
+  // 드롭다운 공통
   dropdownItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 14, gap: 8 },
   dropdownItemText: { fontSize: 14, color: '#333', fontWeight: '500' },
   dropdownDivider: { height: 1, backgroundColor: '#F5F5F5' },
-  addItemBtn: { alignItems: 'center', justifyContent: 'center', paddingVertical: 10, backgroundColor: '#F7F8FF', borderRadius: 10, marginBottom: 8 },
-  addCategoryBtn: { alignItems: 'center', justifyContent: 'center', paddingVertical: 14 },
-  divider: { height: 1, backgroundColor: '#F0F0F0', marginVertical: 4 },
+
+  // 모달
   modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)' },
   modalSlide: { flex: 1, justifyContent: 'flex-end' },
   modalSlideContent: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 40 },

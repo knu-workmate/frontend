@@ -148,15 +148,12 @@ async function deleteScheduleByPermission(
   const encodedScheduleId = encodeURIComponent(String(scheduleId));
 
   if (isAdminLike) {
-    // Swagger 기준: DELETE /schedule/delete-admin?scheduleId=1
-    // scheduleId는 array<integer> query지만 1개 삭제 시 scheduleId=1 형태로 전송
     await apiRequest(`/schedule/delete-admin?scheduleId=${encodedScheduleId}`, {
       method: 'DELETE',
     });
     return;
   }
 
-  // 유저 본인 근무 삭제
   await apiRequest(`/schedule/delete?scheduleId=${encodedScheduleId}`, {
     method: 'DELETE',
   });
@@ -1039,7 +1036,7 @@ export default function ScheduleScreen() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="chevron-back" size={28} color={MAIN_COLOR} />
@@ -1056,7 +1053,7 @@ export default function ScheduleScreen() {
           style={styles.scroll}
           contentContainerStyle={[
             styles.contentContainer,
-            { paddingBottom: 120 + Math.max(insets.bottom, 12) },
+            { paddingBottom: Math.max(insets.bottom + 100, 110) },
           ]}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -1128,9 +1125,13 @@ export default function ScheduleScreen() {
                       {WEEKDAY_KR[date.getDay()]}
                     </Text>
 
-                    {hasMyEvent && (
-                      <View style={[styles.eventDot, active && styles.eventDotActive]} />
-                    )}
+                    <View
+                      style={[
+                        styles.eventDot,
+                        !hasMyEvent && styles.eventDotHidden,
+                        active && hasMyEvent && styles.eventDotActive,
+                      ]}
+                    />
                   </TouchableOpacity>
                 );
               })}
@@ -1265,7 +1266,7 @@ export default function ScheduleScreen() {
         <View
           style={[
             styles.bottomButtonContainer,
-            { paddingBottom: Math.max(insets.bottom, 12) },
+            { paddingBottom: Math.max(insets.bottom, 6) },
           ]}
         >
           <TouchableOpacity
@@ -1376,7 +1377,7 @@ export default function ScheduleScreen() {
             <View
               style={[
                 styles.asSheet,
-                { paddingBottom: 24 + Math.max(insets.bottom, 12) },
+                { paddingBottom: Math.max(insets.bottom, 6) },
               ]}
             >
               <View style={styles.asHandle} />
@@ -1626,13 +1627,15 @@ const styles = StyleSheet.create({
   },
   dayChip: {
     width: 38,
-    height: 58,
+    height: 64,
     borderRadius: 19,
     borderWidth: 1,
     borderColor: '#D7D7D7',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
+    paddingTop: 7,
+    paddingBottom: 6,
   },
   dayChipActive: {
     backgroundColor: MAIN_COLOR,
@@ -1651,6 +1654,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#5F5F5F',
     fontWeight: '500',
+    marginBottom: 5,
   },
   dayLabelActive: {
     color: '#FFFFFF',
@@ -1660,8 +1664,9 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     backgroundColor: MAIN_COLOR,
-    position: 'absolute',
-    bottom: 6,
+  },
+  eventDotHidden: {
+    opacity: 0,
   },
   eventDotActive: {
     backgroundColor: '#FFFFFF',

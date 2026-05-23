@@ -795,7 +795,7 @@ export default function ScheduleRegisterScreen() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <SafeAreaView style={s.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={s.safeArea} edges={['top']}>
         <View style={s.header}>
           <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
             <Ionicons name="chevron-back" size={28} color={MAIN_COLOR} />
@@ -810,7 +810,7 @@ export default function ScheduleRegisterScreen() {
           style={s.scroll}
           contentContainerStyle={[
             s.content,
-            { paddingBottom: 120 + Math.max(insets.bottom, 12) },
+            { paddingBottom: Math.max(insets.bottom + 100, 110) },
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -1034,7 +1034,7 @@ export default function ScheduleRegisterScreen() {
         <View
           style={[
             s.bottomBar,
-            { paddingBottom: Math.max(insets.bottom, 12) },
+            { paddingBottom: Math.max(insets.bottom, 6) },
           ]}
         >
           <TouchableOpacity

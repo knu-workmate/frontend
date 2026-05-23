@@ -23,70 +23,73 @@ type ManualCategory = {
 };
 
 const MAIN_COLOR = '#2140DC';
+const LIGHT_COLOR = '#EEF1FF';
 
 export default function ManualScreen() {
   const [categories, setCategories] = useState<ManualCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [myRole, setMyRole] = useState<string>('WORKER');
 
-  // 검색
   const [searchText, setSearchText] = useState('');
   const [isSearchVisible, setIsSearchVisible] = useState(false);
 
-  // 점 세개 메뉴
   const [openCategoryMenuId, setOpenCategoryMenuId] = useState<number | null>(null);
   const [openItemMenuId, setOpenItemMenuId] = useState<number | null>(null);
 
-  // 대분류 추가 모달
   const [isAddCategoryVisible, setIsAddCategoryVisible] = useState(false);
   const [newCategoryTitle, setNewCategoryTitle] = useState('');
   const [addCategoryLoading, setAddCategoryLoading] = useState(false);
 
-  // 소분류 추가 모달
   const [isAddItemVisible, setIsAddItemVisible] = useState(false);
   const [addItemCategoryId, setAddItemCategoryId] = useState<number | null>(null);
   const [addItemCategoryName, setAddItemCategoryName] = useState('');
   const [newItemContent, setNewItemContent] = useState('');
   const [addItemLoading, setAddItemLoading] = useState(false);
 
-  // 대분류 수정 모달
   const [isEditCategoryVisible, setIsEditCategoryVisible] = useState(false);
   const [editCategoryId, setEditCategoryId] = useState<number | null>(null);
   const [editCategoryTitle, setEditCategoryTitle] = useState('');
   const [editCategoryLoading, setEditCategoryLoading] = useState(false);
 
-  // 소분류 수정 모달
   const [isEditItemVisible, setIsEditItemVisible] = useState(false);
   const [editItemId, setEditItemId] = useState<number | null>(null);
   const [editItemCategoryId, setEditItemCategoryId] = useState<number | null>(null);
   const [editItemContent, setEditItemContent] = useState('');
   const [editItemLoading, setEditItemLoading] = useState(false);
 
+  const fetchMyProfile = async () => {
+    try {
+      const result = await apiRequest('/user/profile');
+      setMyRole(result.role);
+    } catch (e: any) {
+      console.log('프로필 조회 실패:', e.message);
+    }
+  };
+
   const fetchManuals = async () => {
-    setLoading(true);
     try {
       const result = await apiRequest('/manuals/categoriesAndManuals');
       const mapped: ManualCategory[] = (Array.isArray(result) ? result : []).map((item: any) => ({
-        manualId: item.manualId,
-        title: item.title,
-        role: item.role,
+        manualId: item.manualId ?? item.id,
+        title: item.title ?? item.name,
+        role: item.role ?? 'WORKER',
         manuals: item.manuals ?? [],
         isExpanded: false,
       }));
       setCategories(mapped);
-      if (mapped.length > 0) setMyRole(mapped[0].role);
     } catch (e: any) {
-      Alert.alert('오류', '매뉴얼을 불러오지 못했습니다.');
-    } finally {
-      setLoading(false);
+      Alert.alert('목록 조회 실패', e.message || '매뉴얼을 불러오지 못했습니다.');
     }
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchManuals();
-    }, [])
-  );
+  const loadData = async () => {
+    setLoading(true);
+    await fetchMyProfile();
+    await fetchManuals();
+    setLoading(false);
+  };
+
+  useFocusEffect(useCallback(() => { loadData(); }, []));
 
   const toggleCategory = (id: number) => {
     setCategories(prev =>
@@ -101,16 +104,11 @@ export default function ManualScreen() {
       .map(cat => ({
         ...cat,
         isExpanded: true,
-        manuals: cat.manuals.filter(item =>
-          item.content.toLowerCase().includes(keyword)
-        ),
+        manuals: cat.manuals.filter(item => item.content.toLowerCase().includes(keyword)),
       }))
-      .filter(cat =>
-        cat.title.toLowerCase().includes(keyword) || cat.manuals.length > 0
-      );
+      .filter(cat => cat.title.toLowerCase().includes(keyword) || cat.manuals.length > 0);
   }, [categories, searchText]);
 
-  // 대분류 추가
   const handleAddCategory = async () => {
     if (!newCategoryTitle.trim()) return;
     setAddCategoryLoading(true);
@@ -123,13 +121,16 @@ export default function ManualScreen() {
       setIsAddCategoryVisible(false);
       await fetchManuals();
     } catch (e: any) {
-      Alert.alert('오류', '카테고리 생성에 실패했습니다.');
+      if (e.message && e.message.includes('이미 동일한 이름')) {
+        Alert.alert('알림', '이미 존재하는 카테고리 이름입니다.');
+      } else {
+        Alert.alert('카테고리 생성 오류', e.message);
+      }
     } finally {
       setAddCategoryLoading(false);
     }
   };
 
-  // 대분류 수정
   const handleEditCategory = async () => {
     if (!editCategoryTitle.trim() || !editCategoryId) return;
     setEditCategoryLoading(true);
@@ -141,13 +142,12 @@ export default function ManualScreen() {
       setIsEditCategoryVisible(false);
       await fetchManuals();
     } catch (e: any) {
-      Alert.alert('오류', '카테고리 수정에 실패했습니다.');
+      Alert.alert('카테고리 수정 오류', e.message);
     } finally {
       setEditCategoryLoading(false);
     }
   };
 
-  // 대분류 삭제
   const handleDeleteCategory = (id: number) => {
     setOpenCategoryMenuId(null);
     Alert.alert('카테고리 삭제', '이 카테고리와 모든 항목을 삭제하시겠습니까?', [
@@ -159,57 +159,48 @@ export default function ManualScreen() {
             await apiRequest(`/manuals/categories/${id}`, { method: 'DELETE' });
             await fetchManuals();
           } catch (e: any) {
-            Alert.alert('오류', '카테고리 삭제에 실패했습니다.');
+            Alert.alert('카테고리 삭제 오류', e.message);
           }
         },
       },
     ]);
   };
 
-  // 소분류 추가
   const handleAddItem = async () => {
     if (!newItemContent.trim() || !addItemCategoryId) return;
     setAddItemLoading(true);
     try {
       await apiRequest('/manuals/manuals', {
         method: 'POST',
-        body: JSON.stringify({
-          content: newItemContent.trim(),
-          categoryId: addItemCategoryId,
-        }),
+        body: JSON.stringify({ content: newItemContent.trim(), categoryId: addItemCategoryId }),
       });
       setNewItemContent('');
       setIsAddItemVisible(false);
       await fetchManuals();
     } catch (e: any) {
-      Alert.alert('오류', '매뉴얼 추가에 실패했습니다.');
+      Alert.alert('소분류 추가 오류', e.message);
     } finally {
       setAddItemLoading(false);
     }
   };
 
-  // 소분류 수정
   const handleEditItem = async () => {
     if (!editItemContent.trim() || !editItemId || !editItemCategoryId) return;
     setEditItemLoading(true);
     try {
       await apiRequest(`/manuals/manuals/${editItemId}`, {
         method: 'PATCH',
-        body: JSON.stringify({
-          content: editItemContent.trim(),
-          categoryId: editItemCategoryId,
-        }),
+        body: JSON.stringify({ content: editItemContent.trim(), categoryId: editItemCategoryId }),
       });
       setIsEditItemVisible(false);
       await fetchManuals();
     } catch (e: any) {
-      Alert.alert('오류', '매뉴얼 수정에 실패했습니다.');
+      Alert.alert('소분류 수정 오류', e.message);
     } finally {
       setEditItemLoading(false);
     }
   };
 
-  // 소분류 삭제
   const handleDeleteItem = (itemId: number) => {
     setOpenItemMenuId(null);
     Alert.alert('매뉴얼 삭제', '이 항목을 삭제하시겠습니까?', [
@@ -221,14 +212,14 @@ export default function ManualScreen() {
             await apiRequest(`/manuals/manuals/${itemId}`, { method: 'DELETE' });
             await fetchManuals();
           } catch (e: any) {
-            Alert.alert('오류', '매뉴얼 삭제에 실패했습니다.');
+            Alert.alert('소분류 삭제 오류', e.message);
           }
         },
       },
     ]);
   };
 
-  const isAdmin = myRole === 'ADMIN';
+  const isAdmin = myRole === 'ADMIN' || myRole?.includes('OWNER') || myRole?.includes('MANAGER');
 
   if (loading) {
     return (
@@ -245,10 +236,7 @@ export default function ManualScreen() {
       {(openCategoryMenuId !== null || openItemMenuId !== null) && (
         <Pressable
           style={StyleSheet.absoluteFill}
-          onPress={() => {
-            setOpenCategoryMenuId(null);
-            setOpenItemMenuId(null);
-          }}
+          onPress={() => { setOpenCategoryMenuId(null); setOpenItemMenuId(null); }}
         />
       )}
 
@@ -258,16 +246,9 @@ export default function ManualScreen() {
         <Text style={styles.headerTitle}>매뉴얼</Text>
         <TouchableOpacity
           style={styles.searchIconBtn}
-          onPress={() => {
-            setIsSearchVisible(!isSearchVisible);
-            if (isSearchVisible) setSearchText('');
-          }}
+          onPress={() => { setIsSearchVisible(!isSearchVisible); if (isSearchVisible) setSearchText(''); }}
         >
-          <Ionicons
-            name={isSearchVisible ? 'close-outline' : 'search-outline'}
-            size={22}
-            color="#333"
-          />
+          <Ionicons name={isSearchVisible ? 'close-outline' : 'search-outline'} size={22} color="#333" />
         </TouchableOpacity>
       </View>
 
@@ -291,30 +272,10 @@ export default function ManualScreen() {
         </View>
       )}
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ADMIN만 대분류 추가 버튼 - 상단 */}
-        {isAdmin && !searchText.trim() && (
-          <>
-            <TouchableOpacity
-              style={styles.addCategoryBtn}
-              onPress={() => {
-                setNewCategoryTitle('');
-                setIsAddCategoryVisible(true);
-              }}
-            >
-              <Ionicons name="add" size={20} color="#AAAAAA" />
-            </TouchableOpacity>
-            <View style={styles.divider} />
-          </>
-        )}
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
         {/* 카테고리 목록 */}
         {filteredCategories.length === 0 ? (
-          // 빈 상태 화면
           <View style={styles.emptyContainer}>
             <Ionicons name="document-text-outline" size={52} color="#CCCCCC" />
             <Text style={styles.emptyText}>
@@ -327,7 +288,7 @@ export default function ManualScreen() {
               key={category.manualId}
               style={[styles.categoryBlock, { zIndex: openCategoryMenuId === category.manualId ? 999 : 1 }]}
             >
-              {/* 대분류 행 */}
+              {/* 대분류 행 - 회색 박스 스타일 */}
               <TouchableOpacity
                 style={styles.categoryRow}
                 onPress={() => toggleCategory(category.manualId)}
@@ -339,7 +300,6 @@ export default function ManualScreen() {
                     <Text style={styles.countBadgeText}>{category.manuals.length}</Text>
                   </View>
                 </View>
-
                 <View style={styles.categoryRight}>
                   <Ionicons
                     name={category.isExpanded ? 'chevron-up' : 'chevron-down'}
@@ -387,7 +347,7 @@ export default function ManualScreen() {
                 </View>
               )}
 
-              {/* 소분류 목록 */}
+              {/* 소분류 목록 - 연파란 배경 박스 */}
               {category.isExpanded && (
                 <View style={styles.itemList}>
                   {category.manuals.map((item) => (
@@ -396,7 +356,8 @@ export default function ManualScreen() {
                       style={[styles.itemRow, { zIndex: openItemMenuId === item.id ? 999 : 1 }]}
                     >
                       <Text style={styles.itemContent}>{item.content}</Text>
-                      {isAdmin && (
+                      {/* 항목 오른쪽 아이콘: ADMIN은 점 세개, WORKER는 돋보기 */}
+                      {isAdmin ? (
                         <View style={{ position: 'relative' }}>
                           <TouchableOpacity
                             style={styles.menuDotBtn}
@@ -434,6 +395,8 @@ export default function ManualScreen() {
                             </View>
                           )}
                         </View>
+                      ) : (
+                        null
                       )}
                     </View>
                   ))}
@@ -455,9 +418,23 @@ export default function ManualScreen() {
                 </View>
               )}
 
+              {/* 대분류 간 구분선 */}
               <View style={styles.divider} />
             </View>
           ))
+        )}
+
+        {/* ← + 버튼을 맨 아래로 이동 */}
+        {isAdmin && !searchText.trim() && (
+          <>
+            <TouchableOpacity
+              style={styles.addCategoryBtn}
+              onPress={() => { setNewCategoryTitle(''); setIsAddCategoryVisible(true); }}
+            >
+              <Ionicons name="add" size={20} color="#AAAAAA" />
+            </TouchableOpacity>
+            <View style={styles.divider} />
+          </>
         )}
       </ScrollView>
 
@@ -488,10 +465,7 @@ export default function ManualScreen() {
               onPress={handleAddCategory}
               disabled={!newCategoryTitle.trim() || addCategoryLoading}
             >
-              {addCategoryLoading
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.confirmBtnText}>확인</Text>
-              }
+              {addCategoryLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>확인</Text>}
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -524,10 +498,7 @@ export default function ManualScreen() {
               onPress={handleEditCategory}
               disabled={!editCategoryTitle.trim() || editCategoryLoading}
             >
-              {editCategoryLoading
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.confirmBtnText}>확인</Text>
-              }
+              {editCategoryLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>확인</Text>}
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -565,10 +536,7 @@ export default function ManualScreen() {
               onPress={handleAddItem}
               disabled={!newItemContent.trim() || addItemLoading}
             >
-              {addItemLoading
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.confirmBtnText}>확인</Text>
-              }
+              {addItemLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>확인</Text>}
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -602,10 +570,7 @@ export default function ManualScreen() {
               onPress={handleEditItem}
               disabled={!editItemContent.trim() || editItemLoading}
             >
-              {editItemLoading
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.confirmBtnText}>확인</Text>
-              }
+              {editItemLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>확인</Text>}
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -617,57 +582,324 @@ export default function ManualScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111' },
-  searchIconBtn: { width: 36, alignItems: 'flex-end' },
-  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 10, marginHorizontal: 20, marginTop: 10, marginBottom: 4, paddingHorizontal: 12, height: 42, gap: 8 },
-  searchInput: { flex: 1, fontSize: 15, color: '#333' },
+
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#111',
+  },
+
+  searchIconBtn: {
+    width: 36,
+    alignItems: 'flex-end',
+  },
+
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+    borderRadius: 10,
+    marginHorizontal: 20,
+    marginTop: 10,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    height: 42,
+    gap: 8,
+  },
+
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#333',
+  },
+
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 100 },
+
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 100,
+  },
 
   // 빈 상태
-  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 80, gap: 12 },
-  emptyText: { fontSize: 14, color: '#AAAAAA' },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 80,
+    gap: 12,
+  },
 
-  // 대분류 추가 버튼
-  addCategoryBtn: { alignItems: 'center', justifyContent: 'center', paddingVertical: 14 },
-  divider: { height: 1, backgroundColor: '#F0F0F0', marginVertical: 4 },
+  emptyText: {
+    fontSize: 14,
+    color: '#AAAAAA',
+  },
 
-  // 카테고리
-  categoryBlock: { marginBottom: 0, position: 'relative' },
-  categoryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14 },
-  categoryLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 },
-  categoryTitle: { fontSize: 15, fontWeight: '600', color: '#222' },
-  countBadge: { backgroundColor: MAIN_COLOR, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, minWidth: 22, alignItems: 'center' },
-  countBadgeText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
-  categoryRight: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  menuDotBtn: { padding: 6 },
-  categoryDropdown: { position: 'absolute', right: 0, top: 50, backgroundColor: '#FFF', borderRadius: 10, borderWidth: 1, borderColor: '#EFEFEF', zIndex: 100, elevation: 10, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, minWidth: 100 },
+  // ===== 수정 1: 대분류 추가 버튼 크기 조정 =====
+  addCategoryBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    // 기존 14 → 10
+    paddingVertical: 10,
+
+    // 카테고리와 높이 유사하게
+    minHeight: 38,
+  },
+
+  // ===== 수정 2: 구분선 중앙 정렬 =====
+  divider: {
+    height: 1,
+    backgroundColor: '#E6E6E6',
+
+    // 기존 marginVertical: 4 제거
+    marginTop: 8,
+    marginBottom: 8,
+  },
+
+  // 카테고리 블록
+  categoryBlock: {
+    position: 'relative',
+
+    // 기존 8 → 0
+    // divider가 간격 담당하게 변경
+    marginBottom: 0,
+  },
+
+  // 카테고리 - 연회색 박스
+  categoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: '#F5F6F8',
+    borderRadius: 10,
+  },
+
+  categoryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 10,
+  },
+
+  categoryTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#222',
+  },
+
+  countBadge: {
+    backgroundColor: MAIN_COLOR,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+
+  countBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+
+  categoryRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+
+  menuDotBtn: {
+    padding: 6,
+  },
+
+  categoryDropdown: {
+    position: 'absolute',
+    right: 0,
+    top: 52,
+    backgroundColor: '#FFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#EFEFEF',
+    zIndex: 100,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    minWidth: 100,
+  },
 
   // 소분류
-  itemList: { paddingLeft: 4, paddingBottom: 4 },
-  itemRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 14, marginBottom: 8, position: 'relative' },
-  itemContent: { fontSize: 14, color: '#333', flex: 1, lineHeight: 20 },
-  itemDropdown: { position: 'absolute', right: 0, top: 28, backgroundColor: '#FFF', borderRadius: 10, borderWidth: 1, borderColor: '#EFEFEF', zIndex: 100, elevation: 10, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, minWidth: 100 },
-  addItemBtn: { alignItems: 'center', justifyContent: 'center', paddingVertical: 10, backgroundColor: '#F7F8FF', borderRadius: 10, marginBottom: 8 },
+  itemList: {
+    paddingLeft: 0,
+    paddingBottom: 4,
+    marginTop: 4,
+  },
 
-  // 드롭다운 공통
-  dropdownItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 14, gap: 8 },
-  dropdownItemText: { fontSize: 14, color: '#333', fontWeight: '500' },
-  dropdownDivider: { height: 1, backgroundColor: '#F5F5F5' },
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 6,
+    backgroundColor: LIGHT_COLOR,
+    borderRadius: 10,
+    position: 'relative',
+  },
 
-  // 모달
-  modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)' },
-  modalSlide: { flex: 1, justifyContent: 'flex-end' },
-  modalSlideContent: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 40 },
-  modalSlideHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 },
-  modalSlideTitle: { fontSize: 16, fontWeight: 'bold', color: '#111' },
-  sectionBigTitle: { fontSize: 22, fontWeight: 'bold', color: '#111', marginBottom: 24 },
-  inputLabel: { fontSize: 13, fontWeight: '600', color: '#333', marginBottom: 8 },
-  textInput: { borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 10, padding: 14, fontSize: 15, color: '#111', marginBottom: 16, backgroundColor: '#FAFAFA' },
-  textInputActive: { borderColor: MAIN_COLOR, backgroundColor: '#FFF' },
-  categorySelectDisplay: { borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 10, padding: 14, marginBottom: 16, backgroundColor: '#F5F5F5' },
-  categorySelectText: { fontSize: 15, color: '#666' },
-  confirmBtn: { backgroundColor: MAIN_COLOR, paddingVertical: 16, borderRadius: 14, alignItems: 'center', marginTop: 8 },
-  confirmBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  itemContent: {
+    fontSize: 14,
+    color: '#333',
+    flex: 1,
+    lineHeight: 20,
+    marginRight: 8,
+  },
+
+  itemDropdown: {
+    position: 'absolute',
+    right: 0,
+    top: 28,
+    backgroundColor: '#FFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#EFEFEF',
+    zIndex: 100,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    minWidth: 100,
+  },
+
+  addItemBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    backgroundColor: LIGHT_COLOR,
+    borderRadius: 10,
+    marginBottom: 4,
+  },
+
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    gap: 8,
+  },
+
+  dropdownItemText: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
+  },
+
+  dropdownDivider: {
+    height: 1,
+    backgroundColor: '#F5F5F5',
+  },
+
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+
+  modalSlide: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+
+  modalSlideContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 40,
+  },
+
+  modalSlideHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+
+  modalSlideTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#111',
+  },
+
+  sectionBigTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#111',
+    marginBottom: 24,
+  },
+
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 10,
+    padding: 14,
+    fontSize: 15,
+    color: '#111',
+    marginBottom: 16,
+    backgroundColor: '#FAFAFA',
+  },
+
+  textInputActive: {
+    borderColor: MAIN_COLOR,
+    backgroundColor: '#FFF',
+  },
+
+  categorySelectDisplay: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 16,
+    backgroundColor: '#F5F5F5',
+  },
+
+  categorySelectText: {
+    fontSize: 15,
+    color: '#666',
+  },
+
+  confirmBtn: {
+    backgroundColor: MAIN_COLOR,
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+
+  confirmBtnText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
 });

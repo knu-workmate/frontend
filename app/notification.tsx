@@ -94,7 +94,11 @@ export default function NotificationScreen() {
     try {
       setErrorMessage('');
 
+      console.log('알림 목록 조회 시작');
+
       const result = await apiRequest('/api/notifications');
+
+      console.log('알림 목록 조회 결과:', result);
 
       const notificationList = normalizeNotificationList(result).sort(
         (a, b) =>

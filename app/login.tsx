@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiRequest, publicRequest } from '../utils/api';
+import { registerForPushNotificationsAsync } from '../utils/registerForPushNotifications';
 import { saveAccessToken } from '../utils/tokenStorage';
 
 export default function LoginScreen() {
@@ -42,6 +43,8 @@ export default function LoginScreen() {
 
       await saveAccessToken(result.accessToken);
       console.log('로그인 성공, 토큰 저장 완료');
+
+      await registerForPushNotificationsAsync();
 
       try {
         const workplaceInfo = await apiRequest('/workplace/info');

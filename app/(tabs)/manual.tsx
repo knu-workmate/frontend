@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
-  SafeAreaView, View, Text, StyleSheet, TouchableOpacity,
+  View, Text, StyleSheet, TouchableOpacity,
   ScrollView, TextInput, Alert, Modal, Pressable,
   KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context'; // ← 변경
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { apiRequest } from '../../utils/api';
@@ -223,7 +224,8 @@ export default function ManualScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      // ✅ edges로 상단만 SafeArea 적용
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={MAIN_COLOR} />
         </View>
@@ -232,7 +234,8 @@ export default function ManualScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    // ✅ react-native-safe-area-context SafeAreaView + edges 설정
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       {(openCategoryMenuId !== null || openItemMenuId !== null) && (
         <Pressable
           style={StyleSheet.absoluteFill}
@@ -272,9 +275,12 @@ export default function ManualScreen() {
         </View>
       )}
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
-        {/* 카테고리 목록 */}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {filteredCategories.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="document-text-outline" size={52} color="#CCCCCC" />
@@ -288,7 +294,6 @@ export default function ManualScreen() {
               key={category.manualId}
               style={[styles.categoryBlock, { zIndex: openCategoryMenuId === category.manualId ? 999 : 1 }]}
             >
-              {/* 대분류 행 - 회색 박스 스타일 */}
               <TouchableOpacity
                 style={styles.categoryRow}
                 onPress={() => toggleCategory(category.manualId)}
@@ -321,7 +326,6 @@ export default function ManualScreen() {
                 </View>
               </TouchableOpacity>
 
-              {/* 대분류 드롭다운 메뉴 */}
               {openCategoryMenuId === category.manualId && (
                 <View style={styles.categoryDropdown}>
                   <TouchableOpacity
@@ -347,7 +351,6 @@ export default function ManualScreen() {
                 </View>
               )}
 
-              {/* 소분류 목록 - 연파란 배경 박스 */}
               {category.isExpanded && (
                 <View style={styles.itemList}>
                   {category.manuals.map((item) => (
@@ -356,8 +359,7 @@ export default function ManualScreen() {
                       style={[styles.itemRow, { zIndex: openItemMenuId === item.id ? 999 : 1 }]}
                     >
                       <Text style={styles.itemContent}>{item.content}</Text>
-                      {/* 항목 오른쪽 아이콘: ADMIN은 점 세개, WORKER는 돋보기 */}
-                      {isAdmin ? (
+                      {isAdmin && (
                         <View style={{ position: 'relative' }}>
                           <TouchableOpacity
                             style={styles.menuDotBtn}
@@ -395,13 +397,10 @@ export default function ManualScreen() {
                             </View>
                           )}
                         </View>
-                      ) : (
-                        null
                       )}
                     </View>
                   ))}
 
-                  {/* ADMIN만 소분류 추가 버튼 */}
                   {isAdmin && (
                     <TouchableOpacity
                       style={styles.addItemBtn}
@@ -418,13 +417,11 @@ export default function ManualScreen() {
                 </View>
               )}
 
-              {/* 대분류 간 구분선 */}
               <View style={styles.divider} />
             </View>
           ))
         )}
 
-        {/* ← + 버튼을 맨 아래로 이동 */}
         {isAdmin && !searchText.trim() && (
           <>
             <TouchableOpacity
@@ -441,7 +438,10 @@ export default function ManualScreen() {
       {/* ===== 대분류 추가 모달 ===== */}
       <Modal visible={isAddCategoryVisible} transparent animationType="slide">
         <Pressable style={styles.modalBackdrop} onPress={() => setIsAddCategoryVisible(false)} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalSlide}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalSlide}
+        >
           <View style={styles.modalSlideContent}>
             <View style={styles.modalSlideHeader}>
               <TouchableOpacity onPress={() => setIsAddCategoryVisible(false)}>
@@ -450,23 +450,26 @@ export default function ManualScreen() {
               <Text style={styles.modalSlideTitle}>카테고리 추가</Text>
               <View style={{ width: 24 }} />
             </View>
-            <Text style={styles.sectionBigTitle}>카테고리 추가</Text>
-            <Text style={styles.inputLabel}>*카테고리 이름</Text>
-            <TextInput
-              style={[styles.textInput, styles.textInputActive]}
-              placeholder="예) 매장운영, 고객응대"
-              placeholderTextColor="#BDBDBD"
-              value={newCategoryTitle}
-              onChangeText={setNewCategoryTitle}
-              autoFocus
-            />
-            <TouchableOpacity
-              style={[styles.confirmBtn, (!newCategoryTitle.trim() || addCategoryLoading) && { backgroundColor: '#BDBDBD' }]}
-              onPress={handleAddCategory}
-              disabled={!newCategoryTitle.trim() || addCategoryLoading}
-            >
-              {addCategoryLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>확인</Text>}
-            </TouchableOpacity>
+            {/* ✅ ScrollView로 감싸서 키보드에 가려져도 스크롤 가능 */}
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <Text style={styles.sectionBigTitle}>카테고리 추가</Text>
+              <Text style={styles.inputLabel}>*카테고리 이름</Text>
+              <TextInput
+                style={[styles.textInput, styles.textInputActive]}
+                placeholder="예) 매장운영, 고객응대"
+                placeholderTextColor="#BDBDBD"
+                value={newCategoryTitle}
+                onChangeText={setNewCategoryTitle}
+                autoFocus
+              />
+              <TouchableOpacity
+                style={[styles.confirmBtn, (!newCategoryTitle.trim() || addCategoryLoading) && { backgroundColor: '#BDBDBD' }]}
+                onPress={handleAddCategory}
+                disabled={!newCategoryTitle.trim() || addCategoryLoading}
+              >
+                {addCategoryLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>확인</Text>}
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -474,7 +477,10 @@ export default function ManualScreen() {
       {/* ===== 대분류 수정 모달 ===== */}
       <Modal visible={isEditCategoryVisible} transparent animationType="slide">
         <Pressable style={styles.modalBackdrop} onPress={() => setIsEditCategoryVisible(false)} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalSlide}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalSlide}
+        >
           <View style={styles.modalSlideContent}>
             <View style={styles.modalSlideHeader}>
               <TouchableOpacity onPress={() => setIsEditCategoryVisible(false)}>
@@ -483,23 +489,25 @@ export default function ManualScreen() {
               <Text style={styles.modalSlideTitle}>카테고리 수정</Text>
               <View style={{ width: 24 }} />
             </View>
-            <Text style={styles.sectionBigTitle}>카테고리 수정</Text>
-            <Text style={styles.inputLabel}>*카테고리 이름</Text>
-            <TextInput
-              style={[styles.textInput, styles.textInputActive]}
-              placeholder="카테고리 이름"
-              placeholderTextColor="#BDBDBD"
-              value={editCategoryTitle}
-              onChangeText={setEditCategoryTitle}
-              autoFocus
-            />
-            <TouchableOpacity
-              style={[styles.confirmBtn, (!editCategoryTitle.trim() || editCategoryLoading) && { backgroundColor: '#BDBDBD' }]}
-              onPress={handleEditCategory}
-              disabled={!editCategoryTitle.trim() || editCategoryLoading}
-            >
-              {editCategoryLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>확인</Text>}
-            </TouchableOpacity>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <Text style={styles.sectionBigTitle}>카테고리 수정</Text>
+              <Text style={styles.inputLabel}>*카테고리 이름</Text>
+              <TextInput
+                style={[styles.textInput, styles.textInputActive]}
+                placeholder="카테고리 이름"
+                placeholderTextColor="#BDBDBD"
+                value={editCategoryTitle}
+                onChangeText={setEditCategoryTitle}
+                autoFocus
+              />
+              <TouchableOpacity
+                style={[styles.confirmBtn, (!editCategoryTitle.trim() || editCategoryLoading) && { backgroundColor: '#BDBDBD' }]}
+                onPress={handleEditCategory}
+                disabled={!editCategoryTitle.trim() || editCategoryLoading}
+              >
+                {editCategoryLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>확인</Text>}
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -507,7 +515,10 @@ export default function ManualScreen() {
       {/* ===== 소분류 추가 모달 ===== */}
       <Modal visible={isAddItemVisible} transparent animationType="slide">
         <Pressable style={styles.modalBackdrop} onPress={() => setIsAddItemVisible(false)} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalSlide}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalSlide}
+        >
           <View style={styles.modalSlideContent}>
             <View style={styles.modalSlideHeader}>
               <TouchableOpacity onPress={() => setIsAddItemVisible(false)}>
@@ -516,28 +527,36 @@ export default function ManualScreen() {
               <Text style={styles.modalSlideTitle}>매뉴얼 추가</Text>
               <View style={{ width: 24 }} />
             </View>
-            <Text style={styles.sectionBigTitle}>매뉴얼 추가</Text>
-            <Text style={styles.inputLabel}>*카테고리</Text>
-            <View style={styles.categorySelectDisplay}>
-              <Text style={styles.categorySelectText}>{addItemCategoryName}</Text>
-            </View>
-            <Text style={styles.inputLabel}>*설명</Text>
-            <TextInput
-              style={[styles.textInput, { minHeight: 100, textAlignVertical: 'top' }]}
-              placeholder="매뉴얼 내용을 입력하세요"
-              placeholderTextColor="#BDBDBD"
-              value={newItemContent}
-              onChangeText={setNewItemContent}
-              multiline
-              autoFocus
-            />
-            <TouchableOpacity
-              style={[styles.confirmBtn, (!newItemContent.trim() || addItemLoading) && { backgroundColor: '#BDBDBD' }]}
-              onPress={handleAddItem}
-              disabled={!newItemContent.trim() || addItemLoading}
+            {/* ✅ ScrollView로 감싸서 키보드 올라와도 확인버튼 스크롤로 접근 가능 */}
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 20 }}
             >
-              {addItemLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>확인</Text>}
-            </TouchableOpacity>
+              <Text style={styles.sectionBigTitle}>매뉴얼 추가</Text>
+              <Text style={styles.inputLabel}>*카테고리</Text>
+              <View style={styles.categorySelectDisplay}>
+                <Text style={styles.categorySelectText}>{addItemCategoryName}</Text>
+              </View>
+              <Text style={styles.inputLabel}>*설명</Text>
+              <TextInput
+                style={[styles.textInput, { minHeight: 120, textAlignVertical: 'top' }]}
+                placeholder="매뉴얼 내용을 입력하세요"
+                placeholderTextColor="#BDBDBD"
+                value={newItemContent}
+                onChangeText={setNewItemContent}
+                multiline
+                autoFocus
+                scrollEnabled={false} // ← TextInput 내부 스크롤 비활성화, 외부 ScrollView가 처리
+              />
+              <TouchableOpacity
+                style={[styles.confirmBtn, (!newItemContent.trim() || addItemLoading) && { backgroundColor: '#BDBDBD' }]}
+                onPress={handleAddItem}
+                disabled={!newItemContent.trim() || addItemLoading}
+              >
+                {addItemLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>확인</Text>}
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -545,7 +564,10 @@ export default function ManualScreen() {
       {/* ===== 소분류 수정 모달 ===== */}
       <Modal visible={isEditItemVisible} transparent animationType="slide">
         <Pressable style={styles.modalBackdrop} onPress={() => setIsEditItemVisible(false)} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalSlide}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalSlide}
+        >
           <View style={styles.modalSlideContent}>
             <View style={styles.modalSlideHeader}>
               <TouchableOpacity onPress={() => setIsEditItemVisible(false)}>
@@ -554,24 +576,32 @@ export default function ManualScreen() {
               <Text style={styles.modalSlideTitle}>매뉴얼 수정</Text>
               <View style={{ width: 24 }} />
             </View>
-            <Text style={styles.sectionBigTitle}>매뉴얼 수정</Text>
-            <Text style={styles.inputLabel}>*설명</Text>
-            <TextInput
-              style={[styles.textInput, { minHeight: 100, textAlignVertical: 'top' }]}
-              placeholder="매뉴얼 내용"
-              placeholderTextColor="#BDBDBD"
-              value={editItemContent}
-              onChangeText={setEditItemContent}
-              multiline
-              autoFocus
-            />
-            <TouchableOpacity
-              style={[styles.confirmBtn, (!editItemContent.trim() || editItemLoading) && { backgroundColor: '#BDBDBD' }]}
-              onPress={handleEditItem}
-              disabled={!editItemContent.trim() || editItemLoading}
+            {/* ✅ ScrollView로 감싸서 키보드 올라와도 확인버튼 스크롤로 접근 가능 */}
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 20 }}
             >
-              {editItemLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>확인</Text>}
-            </TouchableOpacity>
+              <Text style={styles.sectionBigTitle}>매뉴얼 수정</Text>
+              <Text style={styles.inputLabel}>*설명</Text>
+              <TextInput
+                style={[styles.textInput, { minHeight: 120, textAlignVertical: 'top' }]}
+                placeholder="매뉴얼 내용"
+                placeholderTextColor="#BDBDBD"
+                value={editItemContent}
+                onChangeText={setEditItemContent}
+                multiline
+                autoFocus
+                scrollEnabled={false}
+              />
+              <TouchableOpacity
+                style={[styles.confirmBtn, (!editItemContent.trim() || editItemLoading) && { backgroundColor: '#BDBDBD' }]}
+                onPress={handleEditItem}
+                disabled={!editItemContent.trim() || editItemLoading}
+              >
+                {editItemLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>확인</Text>}
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -582,324 +612,46 @@ export default function ManualScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111',
-  },
-
-  searchIconBtn: {
-    width: 36,
-    alignItems: 'flex-end',
-  },
-
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 10,
-    marginHorizontal: 20,
-    marginTop: 10,
-    marginBottom: 4,
-    paddingHorizontal: 12,
-    height: 42,
-    gap: 8,
-  },
-
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: '#333',
-  },
-
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111' },
+  searchIconBtn: { width: 36, alignItems: 'flex-end' },
+  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 10, marginHorizontal: 20, marginTop: 10, marginBottom: 4, paddingHorizontal: 12, height: 42, gap: 8 },
+  searchInput: { flex: 1, fontSize: 15, color: '#333' },
   scroll: { flex: 1 },
-
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 100,
-  },
-
-  // 빈 상태
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 80,
-    gap: 12,
-  },
-
-  emptyText: {
-    fontSize: 14,
-    color: '#AAAAAA',
-  },
-
-  // ===== 수정 1: 대분류 추가 버튼 크기 조정 =====
-  addCategoryBtn: {
-    alignItems: 'center',
-    justifyContent: 'center',
-
-    // 기존 14 → 10
-    paddingVertical: 10,
-
-    // 카테고리와 높이 유사하게
-    minHeight: 38,
-  },
-
-  // ===== 수정 2: 구분선 중앙 정렬 =====
-  divider: {
-    height: 1,
-    backgroundColor: '#E6E6E6',
-
-    // 기존 marginVertical: 4 제거
-    marginTop: 8,
-    marginBottom: 8,
-  },
-
-  // 카테고리 블록
-  categoryBlock: {
-    position: 'relative',
-
-    // 기존 8 → 0
-    // divider가 간격 담당하게 변경
-    marginBottom: 0,
-  },
-
-  // 카테고리 - 연회색 박스
-  categoryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    backgroundColor: '#F5F6F8',
-    borderRadius: 10,
-  },
-
-  categoryLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 10,
-  },
-
-  categoryTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#222',
-  },
-
-  countBadge: {
-    backgroundColor: MAIN_COLOR,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    minWidth: 24,
-    alignItems: 'center',
-  },
-
-  countBadgeText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-
-  categoryRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-
-  menuDotBtn: {
-    padding: 6,
-  },
-
-  categoryDropdown: {
-    position: 'absolute',
-    right: 0,
-    top: 52,
-    backgroundColor: '#FFF',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#EFEFEF',
-    zIndex: 100,
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    minWidth: 100,
-  },
-
-  // 소분류
-  itemList: {
-    paddingLeft: 0,
-    paddingBottom: 4,
-    marginTop: 4,
-  },
-
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginBottom: 6,
-    backgroundColor: LIGHT_COLOR,
-    borderRadius: 10,
-    position: 'relative',
-  },
-
-  itemContent: {
-    fontSize: 14,
-    color: '#333',
-    flex: 1,
-    lineHeight: 20,
-    marginRight: 8,
-  },
-
-  itemDropdown: {
-    position: 'absolute',
-    right: 0,
-    top: 28,
-    backgroundColor: '#FFF',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#EFEFEF',
-    zIndex: 100,
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
-    minWidth: 100,
-  },
-
-  addItemBtn: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    backgroundColor: LIGHT_COLOR,
-    borderRadius: 10,
-    marginBottom: 4,
-  },
-
-  dropdownItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 11,
-    paddingHorizontal: 14,
-    gap: 8,
-  },
-
-  dropdownItemText: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
-  },
-
-  dropdownDivider: {
-    height: 1,
-    backgroundColor: '#F5F5F5',
-  },
-
-  modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-  },
-
-  modalSlide: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-
-  modalSlideContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 40,
-  },
-
-  modalSlideHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-  },
-
-  modalSlideTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#111',
-  },
-
-  sectionBigTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#111',
-    marginBottom: 24,
-  },
-
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-  },
-
-  textInput: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 10,
-    padding: 14,
-    fontSize: 15,
-    color: '#111',
-    marginBottom: 16,
-    backgroundColor: '#FAFAFA',
-  },
-
-  textInputActive: {
-    borderColor: MAIN_COLOR,
-    backgroundColor: '#FFF',
-  },
-
-  categorySelectDisplay: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 16,
-    backgroundColor: '#F5F5F5',
-  },
-
-  categorySelectText: {
-    fontSize: 15,
-    color: '#666',
-  },
-
-  confirmBtn: {
-    backgroundColor: MAIN_COLOR,
-    paddingVertical: 16,
-    borderRadius: 14,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-
-  confirmBtnText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 100 },
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', marginTop: 80, gap: 12 },
+  emptyText: { fontSize: 14, color: '#AAAAAA' },
+  addCategoryBtn: { alignItems: 'center', justifyContent: 'center', paddingVertical: 10, minHeight: 38 },
+  divider: { height: 1, backgroundColor: '#E6E6E6', marginTop: 8, marginBottom: 8 },
+  categoryBlock: { position: 'relative', marginBottom: 0 },
+  categoryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 16, backgroundColor: '#F5F6F8', borderRadius: 10 },
+  categoryLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 },
+  categoryTitle: { fontSize: 15, fontWeight: '600', color: '#222' },
+  countBadge: { backgroundColor: MAIN_COLOR, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2, minWidth: 24, alignItems: 'center' },
+  countBadgeText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
+  categoryRight: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  menuDotBtn: { padding: 6 },
+  categoryDropdown: { position: 'absolute', right: 0, top: 52, backgroundColor: '#FFF', borderRadius: 10, borderWidth: 1, borderColor: '#EFEFEF', zIndex: 100, elevation: 10, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, minWidth: 100 },
+  itemList: { paddingLeft: 0, paddingBottom: 4, marginTop: 4 },
+  itemRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 14, marginBottom: 6, backgroundColor: LIGHT_COLOR, borderRadius: 10, position: 'relative' },
+  itemContent: { fontSize: 14, color: '#333', flex: 1, lineHeight: 20, marginRight: 8 },
+  itemDropdown: { position: 'absolute', right: 0, top: 28, backgroundColor: '#FFF', borderRadius: 10, borderWidth: 1, borderColor: '#EFEFEF', zIndex: 100, elevation: 10, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, minWidth: 100 },
+  addItemBtn: { alignItems: 'center', justifyContent: 'center', paddingVertical: 10, backgroundColor: LIGHT_COLOR, borderRadius: 10, marginBottom: 4 },
+  dropdownItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 14, gap: 8 },
+  dropdownItemText: { fontSize: 14, color: '#333', fontWeight: '500' },
+  dropdownDivider: { height: 1, backgroundColor: '#F5F5F5' },
+  modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)' },
+  modalSlide: { flex: 1, justifyContent: 'flex-end' },
+  // ✅ maxHeight 추가: 키보드 올라와도 모달이 너무 크지 않게
+  modalSlideContent: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 24, paddingTop: 16, paddingBottom: Platform.OS === 'android' ? 24 : 40, maxHeight: '80%' },
+  modalSlideHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 },
+  modalSlideTitle: { fontSize: 16, fontWeight: 'bold', color: '#111' },
+  sectionBigTitle: { fontSize: 22, fontWeight: 'bold', color: '#111', marginBottom: 24 },
+  inputLabel: { fontSize: 13, fontWeight: '600', color: '#333', marginBottom: 8 },
+  textInput: { borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 10, padding: 14, fontSize: 15, color: '#111', marginBottom: 16, backgroundColor: '#FAFAFA' },
+  textInputActive: { borderColor: MAIN_COLOR, backgroundColor: '#FFF' },
+  categorySelectDisplay: { borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 10, padding: 14, marginBottom: 16, backgroundColor: '#F5F5F5' },
+  categorySelectText: { fontSize: 15, color: '#666' },
+  confirmBtn: { backgroundColor: MAIN_COLOR, paddingVertical: 16, borderRadius: 14, alignItems: 'center', marginTop: 8 },
+  confirmBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
 });

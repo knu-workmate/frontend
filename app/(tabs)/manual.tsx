@@ -1,12 +1,21 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import {
-  View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, TextInput, Alert, Modal, Pressable,
-  KeyboardAvoidingView, Platform, ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context'; // ← 변경
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiRequest } from '../../utils/api';
 
 type ManualItem = {
@@ -25,8 +34,12 @@ type ManualCategory = {
 
 const MAIN_COLOR = '#2140DC';
 const LIGHT_COLOR = '#EEF1FF';
+const BOTTOM_TAB_BAR_HEIGHT = 76;
 
 export default function ManualScreen() {
+  const insets = useSafeAreaInsets();
+  const modalBottomGap = BOTTOM_TAB_BAR_HEIGHT + Math.max(insets.bottom, 0);
+
   const [categories, setCategories] = useState<ManualCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [myRole, setMyRole] = useState<string>('WORKER');
@@ -224,7 +237,6 @@ export default function ManualScreen() {
 
   if (loading) {
     return (
-      // ✅ edges로 상단만 SafeArea 적용
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={MAIN_COLOR} />
@@ -234,7 +246,6 @@ export default function ManualScreen() {
   }
 
   return (
-    // ✅ react-native-safe-area-context SafeAreaView + edges 설정
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       {(openCategoryMenuId !== null || openItemMenuId !== null) && (
         <Pressable
@@ -243,7 +254,6 @@ export default function ManualScreen() {
         />
       )}
 
-      {/* 헤더 */}
       <View style={styles.header}>
         <View style={{ width: 36 }} />
         <Text style={styles.headerTitle}>매뉴얼</Text>
@@ -255,7 +265,6 @@ export default function ManualScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* 검색창 */}
       {isSearchVisible && (
         <View style={styles.searchContainer}>
           <Ionicons name="search-outline" size={18} color="#BDBDBD" />
@@ -435,14 +444,16 @@ export default function ManualScreen() {
         )}
       </ScrollView>
 
-      {/* ===== 대분류 추가 모달 ===== */}
       <Modal visible={isAddCategoryVisible} transparent animationType="slide">
-        <Pressable style={styles.modalBackdrop} onPress={() => setIsAddCategoryVisible(false)} />
+        <Pressable
+          style={[styles.modalBackdrop, { bottom: modalBottomGap }]}
+          onPress={() => setIsAddCategoryVisible(false)}
+        />
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalSlide}
         >
-          <View style={styles.modalSlideContent}>
+          <View style={[styles.modalSlideContent, { marginBottom: modalBottomGap }]}>
             <View style={styles.modalSlideHeader}>
               <TouchableOpacity onPress={() => setIsAddCategoryVisible(false)}>
                 <Ionicons name="chevron-back" size={24} color="#333" />
@@ -450,8 +461,12 @@ export default function ManualScreen() {
               <Text style={styles.modalSlideTitle}>카테고리 추가</Text>
               <View style={{ width: 24 }} />
             </View>
-            {/* ✅ ScrollView로 감싸서 키보드에 가려져도 스크롤 가능 */}
-            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.modalScrollContent}
+            >
               <Text style={styles.sectionBigTitle}>카테고리 추가</Text>
               <Text style={styles.inputLabel}>*카테고리 이름</Text>
               <TextInput
@@ -474,14 +489,16 @@ export default function ManualScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* ===== 대분류 수정 모달 ===== */}
       <Modal visible={isEditCategoryVisible} transparent animationType="slide">
-        <Pressable style={styles.modalBackdrop} onPress={() => setIsEditCategoryVisible(false)} />
+        <Pressable
+          style={[styles.modalBackdrop, { bottom: modalBottomGap }]}
+          onPress={() => setIsEditCategoryVisible(false)}
+        />
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalSlide}
         >
-          <View style={styles.modalSlideContent}>
+          <View style={[styles.modalSlideContent, { marginBottom: modalBottomGap }]}>
             <View style={styles.modalSlideHeader}>
               <TouchableOpacity onPress={() => setIsEditCategoryVisible(false)}>
                 <Ionicons name="chevron-back" size={24} color="#333" />
@@ -489,7 +506,12 @@ export default function ManualScreen() {
               <Text style={styles.modalSlideTitle}>카테고리 수정</Text>
               <View style={{ width: 24 }} />
             </View>
-            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.modalScrollContent}
+            >
               <Text style={styles.sectionBigTitle}>카테고리 수정</Text>
               <Text style={styles.inputLabel}>*카테고리 이름</Text>
               <TextInput
@@ -512,14 +534,16 @@ export default function ManualScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* ===== 소분류 추가 모달 ===== */}
       <Modal visible={isAddItemVisible} transparent animationType="slide">
-        <Pressable style={styles.modalBackdrop} onPress={() => setIsAddItemVisible(false)} />
+        <Pressable
+          style={[styles.modalBackdrop, { bottom: modalBottomGap }]}
+          onPress={() => setIsAddItemVisible(false)}
+        />
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalSlide}
         >
-          <View style={styles.modalSlideContent}>
+          <View style={[styles.modalSlideContent, { marginBottom: modalBottomGap }]}>
             <View style={styles.modalSlideHeader}>
               <TouchableOpacity onPress={() => setIsAddItemVisible(false)}>
                 <Ionicons name="chevron-back" size={24} color="#333" />
@@ -527,11 +551,11 @@ export default function ManualScreen() {
               <Text style={styles.modalSlideTitle}>매뉴얼 추가</Text>
               <View style={{ width: 24 }} />
             </View>
-            {/* ✅ ScrollView로 감싸서 키보드 올라와도 확인버튼 스크롤로 접근 가능 */}
+
             <ScrollView
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 20 }}
+              contentContainerStyle={styles.modalScrollContent}
             >
               <Text style={styles.sectionBigTitle}>매뉴얼 추가</Text>
               <Text style={styles.inputLabel}>*카테고리</Text>
@@ -547,7 +571,7 @@ export default function ManualScreen() {
                 onChangeText={setNewItemContent}
                 multiline
                 autoFocus
-                scrollEnabled={false} // ← TextInput 내부 스크롤 비활성화, 외부 ScrollView가 처리
+                scrollEnabled={false}
               />
               <TouchableOpacity
                 style={[styles.confirmBtn, (!newItemContent.trim() || addItemLoading) && { backgroundColor: '#BDBDBD' }]}
@@ -561,14 +585,16 @@ export default function ManualScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* ===== 소분류 수정 모달 ===== */}
       <Modal visible={isEditItemVisible} transparent animationType="slide">
-        <Pressable style={styles.modalBackdrop} onPress={() => setIsEditItemVisible(false)} />
+        <Pressable
+          style={[styles.modalBackdrop, { bottom: modalBottomGap }]}
+          onPress={() => setIsEditItemVisible(false)}
+        />
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.modalSlide}
         >
-          <View style={styles.modalSlideContent}>
+          <View style={[styles.modalSlideContent, { marginBottom: modalBottomGap }]}>
             <View style={styles.modalSlideHeader}>
               <TouchableOpacity onPress={() => setIsEditItemVisible(false)}>
                 <Ionicons name="chevron-back" size={24} color="#333" />
@@ -576,11 +602,11 @@ export default function ManualScreen() {
               <Text style={styles.modalSlideTitle}>매뉴얼 수정</Text>
               <View style={{ width: 24 }} />
             </View>
-            {/* ✅ ScrollView로 감싸서 키보드 올라와도 확인버튼 스크롤로 접근 가능 */}
+
             <ScrollView
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 20 }}
+              contentContainerStyle={styles.modalScrollContent}
             >
               <Text style={styles.sectionBigTitle}>매뉴얼 수정</Text>
               <Text style={styles.inputLabel}>*설명</Text>
@@ -640,10 +666,29 @@ const styles = StyleSheet.create({
   dropdownItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 14, gap: 8 },
   dropdownItemText: { fontSize: 14, color: '#333', fontWeight: '500' },
   dropdownDivider: { height: 1, backgroundColor: '#F5F5F5' },
-  modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)' },
-  modalSlide: { flex: 1, justifyContent: 'flex-end' },
-  // ✅ maxHeight 추가: 키보드 올라와도 모달이 너무 크지 않게
-  modalSlideContent: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 24, paddingTop: 16, paddingBottom: Platform.OS === 'android' ? 24 : 40, maxHeight: '80%' },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  modalSlide: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalSlideContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: Platform.OS === 'android' ? 24 : 40,
+    maxHeight: '72%',
+  },
+  modalScrollContent: {
+    paddingBottom: 24,
+  },
   modalSlideHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 },
   modalSlideTitle: { fontSize: 16, fontWeight: 'bold', color: '#111' },
   sectionBigTitle: { fontSize: 22, fontWeight: 'bold', color: '#111', marginBottom: 24 },

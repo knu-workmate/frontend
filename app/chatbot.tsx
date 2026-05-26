@@ -1,19 +1,19 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Stack, useRouter } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
+  ActivityIndicator,
   Image,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
-  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { getAccessToken } from '../utils/tokenStorage'; // ✅ 경로는 프로젝트 구조에 맞게 수정해주세요
 
 const BASE_URL = 'http://douzonesumin.kro.kr:8082'; // 프로덕션 서버
@@ -64,9 +64,12 @@ async function askChatbot(question: string): Promise<{
   }
 
   const data = await response.json();
+
   // ChatResponse: { answer, references, averageSimilarity, referencedManualCount, generatedAt }
   return {
-    answer: data.answer || '매뉴얼에서 관련 내용을 찾았지만 답변 생성에 실패했어요. 참고 매뉴얼을 직접 확인해 주세요.',
+    answer:
+      data.answer ||
+      '매뉴얼에서 관련 내용을 찾았지만 답변 생성에 실패했어요. 참고 매뉴얼을 직접 확인해 주세요.',
     references: data.references ?? [],
   };
 }
@@ -97,6 +100,7 @@ export default function ChatbotScreen() {
       sender: 'user',
       text: trimmed,
     };
+
     setMessages((prev) => [...prev, userMessage]);
     setInputText('');
     setIsLoading(true);
@@ -111,9 +115,11 @@ export default function ChatbotScreen() {
         text: answer,
         references: references.length > 0 ? references : undefined,
       };
+
       setMessages((prev) => [...prev, workyMessage]);
     } catch (error: any) {
       let errorText = '일시적인 오류가 발생했어요. 잠시 후 다시 시도해 주세요.';
+
       if (error.message === 'AUTH_ERROR') {
         errorText = '인증이 만료되었어요. 다시 로그인해 주세요.';
       }
@@ -124,6 +130,7 @@ export default function ChatbotScreen() {
         text: errorText,
         isError: true,
       };
+
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
@@ -136,81 +143,94 @@ export default function ChatbotScreen() {
   }, [messages, isLoading]);
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* 헤더 */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={28} color="#2F4AFF" />
-        </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
-          <Image source={WORKY_LOGO} style={styles.headerLogo} />
-          <Text style={styles.headerTitle}>워키 (Worky)</Text>
-        </View>
-        <View style={{ width: 28 }} />
-      </View>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <Stack.Screen options={{ headerShown: false }} />
 
-      {/* 채팅 영역 */}
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.chatContainer}
-        contentContainerStyle={styles.chatContent}
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
       >
-        {messages.map((message) => {
-          const isUser = message.sender === 'user';
-          return (
-            <View
-              key={message.id}
-              style={[
-                styles.messageRow,
-                isUser ? styles.userMessageRow : styles.workyMessageRow,
-              ]}
-            >
-              {!isUser && <Image source={WORKY_LOGO} style={styles.avatar} />}
-              <View style={[styles.bubble, isUser ? styles.userBubble : styles.workyBubble, message.isError && styles.errorBubble]}>
-                <Text style={[styles.messageText, isUser ? styles.userText : styles.workyText]}>
-                  {message.text}
-                </Text>
+        {/* 헤더 */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={28} color="#2F4AFF" />
+          </TouchableOpacity>
 
-                {/* 참고 매뉴얼 표시 */}
-                {message.references && message.references.length > 0 && (
-                  <View style={styles.referencesContainer}>
-                    <Text style={styles.referencesTitle}>📋 참고한 매뉴얼</Text>
-                    {message.references.map((ref, index) => (
-                      <View key={ref.manualId} style={styles.referenceItem}>
-                        <Text style={styles.referenceCategoryText}>
-                          [{ref.categoryName}]
-                        </Text>
-                        <Text style={styles.referenceContentText} numberOfLines={2}>
-                          {ref.content}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
+          <View style={styles.headerTitleContainer}>
+            <Image source={WORKY_LOGO} style={styles.headerLogo} />
+            <Text style={styles.headerTitle}>워키</Text>
+          </View>
+
+          <View style={styles.headerRightSpace} />
+        </View>
+
+        {/* 채팅 영역 */}
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.chatContainer}
+          contentContainerStyle={styles.chatContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {messages.map((message) => {
+            const isUser = message.sender === 'user';
+
+            return (
+              <View
+                key={message.id}
+                style={[
+                  styles.messageRow,
+                  isUser ? styles.userMessageRow : styles.workyMessageRow,
+                ]}
+              >
+                {!isUser && <Image source={WORKY_LOGO} style={styles.avatar} />}
+
+                <View
+                  style={[
+                    styles.bubble,
+                    isUser ? styles.userBubble : styles.workyBubble,
+                    message.isError && styles.errorBubble,
+                  ]}
+                >
+                  <Text style={[styles.messageText, isUser ? styles.userText : styles.workyText]}>
+                    {message.text}
+                  </Text>
+
+                  {/* 참고 매뉴얼 표시 */}
+                  {message.references && message.references.length > 0 && (
+                    <View style={styles.referencesContainer}>
+                      <Text style={styles.referencesTitle}>📋 참고한 매뉴얼</Text>
+
+                      {message.references.map((ref) => (
+                        <View key={ref.manualId} style={styles.referenceItem}>
+                          <Text style={styles.referenceCategoryText}>[{ref.categoryName}]</Text>
+                          <Text style={styles.referenceContentText} numberOfLines={2}>
+                            {ref.content}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              </View>
+            );
+          })}
+
+          {/* 로딩 인디케이터 */}
+          {isLoading && (
+            <View style={[styles.messageRow, styles.workyMessageRow]}>
+              <Image source={WORKY_LOGO} style={styles.avatar} />
+              <View style={[styles.bubble, styles.workyBubble, styles.loadingBubble]}>
+                <ActivityIndicator size="small" color="#2F4AFF" />
+                <Text style={[styles.messageText, styles.workyText, styles.loadingText]}>
+                  매뉴얼을 검색하는 중...
+                </Text>
               </View>
             </View>
-          );
-        })}
+          )}
+        </ScrollView>
 
-        {/* 로딩 인디케이터 */}
-        {isLoading && (
-          <View style={[styles.messageRow, styles.workyMessageRow]}>
-            <Image source={WORKY_LOGO} style={styles.avatar} />
-            <View style={[styles.bubble, styles.workyBubble, styles.loadingBubble]}>
-              <ActivityIndicator size="small" color="#2F4AFF" />
-              <Text style={[styles.messageText, styles.workyText, { marginLeft: 8 }]}>
-                매뉴얼을 검색하는 중...
-              </Text>
-            </View>
-          </View>
-        )}
-      </ScrollView>
-
-      {/* 입력창 */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
+        {/* 입력창 */}
         <View style={styles.inputBar}>
           <TextInput
             style={styles.textInput}
@@ -222,6 +242,7 @@ export default function ChatbotScreen() {
             editable={!isLoading}
             onSubmitEditing={handleSend}
           />
+
           <TouchableOpacity
             style={[styles.sendButton, (!inputText.trim() || isLoading) && styles.sendButtonDisabled]}
             onPress={handleSend}
@@ -241,6 +262,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+
   // 헤더
   header: {
     flexDirection: 'row',
@@ -250,27 +275,93 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
+    backgroundColor: '#fff',
   },
-  backButton: { padding: 5 },
-  headerTitleContainer: { flexDirection: 'row', alignItems: 'center' },
-  headerLogo: { width: 28, height: 28, marginRight: 8, borderRadius: 14 },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#2F4AFF' },
+  backButton: {
+    padding: 5,
+  },
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerLogo: {
+    width: 28,
+    height: 28,
+    marginRight: 8,
+    borderRadius: 14,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#2F4AFF',
+  },
+  headerRightSpace: {
+    width: 38,
+  },
 
   // 채팅
-  chatContainer: { flex: 1, backgroundColor: '#FAFAFA' },
-  chatContent: { paddingHorizontal: 15, paddingVertical: 20 },
-  messageRow: { flexDirection: 'row', marginBottom: 15, maxWidth: '85%' },
-  userMessageRow: { alignSelf: 'flex-end', flexDirection: 'row-reverse' },
-  workyMessageRow: { alignSelf: 'flex-start' },
-  avatar: { width: 36, height: 36, borderRadius: 18, marginRight: 8, marginTop: 2 },
-  bubble: { paddingHorizontal: 15, paddingVertical: 12, borderRadius: 20 },
-  userBubble: { backgroundColor: '#2F4AFF', borderBottomRightRadius: 5 },
-  workyBubble: { backgroundColor: '#E9ECFF', borderTopLeftRadius: 5 },
-  errorBubble: { backgroundColor: '#FFF0F0' },
-  loadingBubble: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
-  messageText: { fontSize: 15, lineHeight: 22 },
-  userText: { color: '#fff' },
-  workyText: { color: '#333' },
+  chatContainer: {
+    flex: 1,
+    backgroundColor: '#FAFAFA',
+  },
+  chatContent: {
+    paddingHorizontal: 15,
+    paddingTop: 20,
+    paddingBottom: 20,
+  },
+  messageRow: {
+    flexDirection: 'row',
+    marginBottom: 15,
+    maxWidth: '85%',
+  },
+  userMessageRow: {
+    alignSelf: 'flex-end',
+    flexDirection: 'row-reverse',
+  },
+  workyMessageRow: {
+    alignSelf: 'flex-start',
+  },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 8,
+    marginTop: 2,
+  },
+  bubble: {
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    borderRadius: 20,
+  },
+  userBubble: {
+    backgroundColor: '#2F4AFF',
+    borderBottomRightRadius: 5,
+  },
+  workyBubble: {
+    backgroundColor: '#E9ECFF',
+    borderTopLeftRadius: 5,
+  },
+  errorBubble: {
+    backgroundColor: '#FFF0F0',
+  },
+  loadingBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  loadingText: {
+    marginLeft: 8,
+  },
+  messageText: {
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  userText: {
+    color: '#fff',
+  },
+  workyText: {
+    color: '#333',
+  },
 
   // 참고 매뉴얼
   referencesContainer: {
@@ -308,11 +399,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 10 : 12,
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#EDEDED',
-    paddingBottom: Platform.OS === 'ios' ? 10 : 8,
   },
   textInput: {
     flex: 1,

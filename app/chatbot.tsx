@@ -1,11 +1,11 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,173 +13,224 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { getAccessToken } from '../utils/tokenStorage'; // ✅ 경로는 프로젝트 구조에 맞게 수정해주세요
+
+const BASE_URL = 'http://douzonesumin.kro.kr:8082'; // 프로덕션 서버
+const TOP_K = 3; // 유사도 높은 매뉴얼 몇 개를 참고할지 (백엔드 공지 참고)
 
 const WORKY_LOGO = require('../assets/images/worky_logo.png');
 
-// 💬 메시지 타입 정의
+// ─── 타입 정의 ────────────────────────────────────────────────
+type ManualReference = {
+  manualId: number;
+  content: string;
+  categoryName: string;
+  similarityScore: number;
+};
+
 type Message = {
   id: number;
   sender: 'user' | 'worky';
   text: string;
-  type?: 'text' | 'numbered_list' | 'bullet_list';
-  listItems?: string[]; // 리스트 형태의 답변을 위한 옵션
+  references?: ManualReference[]; // 워키 답변일 때 참고 매뉴얼 표시용
+  isError?: boolean;
 };
 
+// ─── API 호출 함수 ────────────────────────────────────────────
+async function askChatbot(question: string): Promise<{
+  answer: string;
+  references: ManualReference[];
+}> {
+  const token = await getAccessToken();
+
+  const response = await fetch(`${BASE_URL}/api/qa/ask`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      question,
+      topK: TOP_K,
+    }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error('AUTH_ERROR');
+    }
+    throw new Error(`SERVER_ERROR_${response.status}`);
+  }
+
+  const data = await response.json();
+
+  // ChatResponse: { answer, references, averageSimilarity, referencedManualCount, generatedAt }
+  return {
+    answer:
+      data.answer ||
+      '매뉴얼에서 관련 내용을 찾았지만 답변 생성에 실패했어요. 참고 매뉴얼을 직접 확인해 주세요.',
+    references: data.references ?? [],
+  };
+}
+
+// ─── 메인 컴포넌트 ────────────────────────────────────────────
 export default function ChatbotScreen() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
   const [inputText, setInputText] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  // 📝 대화 데이터 상태 관리 (초기값은 시안 기반)
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
       sender: 'worky',
-      text: '안녕하세요! 워크메이트의 AI 조수, 워키입니다. 무엇이든 물어보세요!',
+      text: '안녕하세요! 워크메이트의 AI 조수, 워키입니다. 매뉴얼에 대해 무엇이든 물어보세요!',
     },
-    { id: 2, sender: 'user', text: '포스 마감 방법에 대해 알려줘' },
-    {
-      id: 3,
-      sender: 'worky',
-      text: '매뉴얼에 따르면 마감 절차는 다음과 같습니다.',
-      type: 'numbered_list',
-      listItems: [
-        '포스에서 당일 매출 마감 처리',
-        '현금 금액 확인',
-        '카드 매출 내역 출력',
-        '금고에 보관 후 관리자에게 보고',
-      ],
-    },
-    { id: 4, sender: 'worky', text: '필요하면 단계별로 자세히 알려드릴게요.' },
   ]);
 
-  // 🦾 백엔드 연동 전, 모크(Mock) 응답 로직
-  const getSimulatedResponse = (userText: string): Message => {
-    const time = new Date().getTime();
-    
-    // 1. 등록된 매뉴얼이 없는 경우 처리
-    if (userText.includes('담배판매') || userText.includes('시비')) {
-      return {
-        id: time + 1,
-        sender: 'worky',
-        text: '현재 등록된 매뉴얼에서는 해당 내용을 찾을 수 없습니다. 관리자에게 직접 확인해보시는 걸 권장드려요.',
-      };
-    }
+  // ─── 메시지 전송 ──────────────────────────────────────────
+  const handleSend = async () => {
+    const trimmed = inputText.trim();
+    if (!trimmed || isLoading) return;
 
-    // 2. 다른 매뉴얼 정보 제공 (리스트형)
-    if (userText.includes('청소')) {
-      return {
-        id: time + 1,
-        sender: 'worky',
-        text: '매뉴얼 3페이지 기준으로 다음 구역 청소가 포함됩니다.',
-        type: 'bullet_list',
-        listItems: ['매장 바닥', '테이블 및 의자', '계산대 주변'],
-      };
-    }
-
-    // 3. 기본 응답
-    return {
-      id: time + 1,
-      sender: 'worky',
-      text: `"${userText}"에 대한 답변을 준비 중입니다. 백엔드가 연동되면 실제 매뉴얼 내용을 알려드릴게요!`,
-    };
-  };
-
-  // 📤 메시지 전송 함수
-  const handleSend = () => {
-    if (inputText.trim().length === 0) return;
-
-    // 사용자 메시지 추가
+    // 1) 사용자 메시지 추가
     const userMessage: Message = {
-      id: new Date().getTime(),
+      id: Date.now(),
       sender: 'user',
-      text: inputText,
+      text: trimmed,
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    setInputText(''); // 입력창 초기화
+    setInputText('');
+    setIsLoading(true);
 
-    // AI 응답 시뮬레이션 (1초 후)
-    setTimeout(() => {
-      const aiResponse = getSimulatedResponse(userMessage.text);
-      setMessages((prev) => [...prev, aiResponse]);
-    }, 1000);
+    // 2) API 호출
+    try {
+      const { answer, references } = await askChatbot(trimmed);
+
+      const workyMessage: Message = {
+        id: Date.now() + 1,
+        sender: 'worky',
+        text: answer,
+        references: references.length > 0 ? references : undefined,
+      };
+
+      setMessages((prev) => [...prev, workyMessage]);
+    } catch (error: any) {
+      let errorText = '일시적인 오류가 발생했어요. 잠시 후 다시 시도해 주세요.';
+
+      if (error.message === 'AUTH_ERROR') {
+        errorText = '인증이 만료되었어요. 다시 로그인해 주세요.';
+      }
+
+      const errorMessage: Message = {
+        id: Date.now() + 1,
+        sender: 'worky',
+        text: errorText,
+        isError: true,
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // ⬇️ 새 메시지가 오면 자동으로 아래로 스크롤
+  // ─── 새 메시지 오면 스크롤 아래로 ────────────────────────
   useEffect(() => {
     scrollViewRef.current?.scrollToEnd({ animated: true });
-  }, [messages]);
+  }, [messages, isLoading]);
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* 🛑 헤더 영역 */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={28} color="#2F4AFF" /> {/* 포인트 컬러 블루 */}
-        </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
-          <Image source={WORKY_LOGO} style={styles.headerLogo} />
-          <Text style={styles.headerTitle}>워키 (Worky)</Text>
-        </View>
-        <View style={{ width: 28 }} /> {/* 우측 밸런스를 위한 Dummy View */}
-      </View>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <Stack.Screen options={{ headerShown: false }} />
 
-      {/* 💬 채팅 대화 영역 */}
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.chatContainer}
-        contentContainerStyle={styles.chatContent}
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
       >
-        {messages.map((message) => {
-          const isUser = message.sender === 'user';
-          return (
-            <View
-              key={message.id}
-              style={[
-                styles.messageRow,
-                isUser ? styles.userMessageRow : styles.workyMessageRow,
-              ]}
-            >
-              {/* 워키일 때만 로고 프로필 표시 */}
-              {!isUser && <Image source={WORKY_LOGO} style={styles.avatar} />}
+        {/* 헤더 */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={28} color="#2F4AFF" />
+          </TouchableOpacity>
+
+          <View style={styles.headerTitleContainer}>
+            <Image source={WORKY_LOGO} style={styles.headerLogo} />
+            <Text style={styles.headerTitle}>워키</Text>
+          </View>
+
+          <View style={styles.headerRightSpace} />
+        </View>
+
+        {/* 채팅 영역 */}
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.chatContainer}
+          contentContainerStyle={styles.chatContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {messages.map((message) => {
+            const isUser = message.sender === 'user';
+
+            return (
               <View
+                key={message.id}
                 style={[
-                  styles.bubble,
-                  isUser ? styles.userBubble : styles.workyBubble,
+                  styles.messageRow,
+                  isUser ? styles.userMessageRow : styles.workyMessageRow,
                 ]}
               >
-                {/* 기본 텍스트 */}
-                <Text style={[styles.messageText, isUser ? styles.userText : styles.workyText]}>
-                  {message.text}
-                </Text>
+                {!isUser && <Image source={WORKY_LOGO} style={styles.avatar} />}
 
-                {/* 리스트 형태의 답변 처리 */}
-                {message.listItems && (
-                  <View style={styles.listContainer}>
-                    {message.listItems.map((item, index) => (
-                      <Text
-                        key={index}
-                        style={[styles.listItemText, isUser ? styles.userText : styles.workyText]}
-                      >
-                        {message.type === 'numbered_list'
-                          ? `${index + 1}. ${item}` // 1. 포스 마감...
-                          : `• ${item}`};
-                      </Text>
-                    ))}
-                  </View>
-                )}
+                <View
+                  style={[
+                    styles.bubble,
+                    isUser ? styles.userBubble : styles.workyBubble,
+                    message.isError && styles.errorBubble,
+                  ]}
+                >
+                  <Text style={[styles.messageText, isUser ? styles.userText : styles.workyText]}>
+                    {message.text}
+                  </Text>
+
+                  {/* 참고 매뉴얼 표시 */}
+                  {message.references && message.references.length > 0 && (
+                    <View style={styles.referencesContainer}>
+                      <Text style={styles.referencesTitle}>📋 참고한 매뉴얼</Text>
+
+                      {message.references.map((ref) => (
+                        <View key={ref.manualId} style={styles.referenceItem}>
+                          <Text style={styles.referenceCategoryText}>[{ref.categoryName}]</Text>
+                          <Text style={styles.referenceContentText} numberOfLines={2}>
+                            {ref.content}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              </View>
+            );
+          })}
+
+          {/* 로딩 인디케이터 */}
+          {isLoading && (
+            <View style={[styles.messageRow, styles.workyMessageRow]}>
+              <Image source={WORKY_LOGO} style={styles.avatar} />
+              <View style={[styles.bubble, styles.workyBubble, styles.loadingBubble]}>
+                <ActivityIndicator size="small" color="#2F4AFF" />
+                <Text style={[styles.messageText, styles.workyText, styles.loadingText]}>
+                  매뉴얼을 검색하는 중...
+                </Text>
               </View>
             </View>
-          );
-        })}
-      </ScrollView>
+          )}
+        </ScrollView>
 
-      {/* ⌨️ 입력창 영역 */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0} // 탭바 높이 고려
-      >
+        {/* 입력창 */}
         <View style={styles.inputBar}>
           <TextInput
             style={styles.textInput}
@@ -187,12 +238,16 @@ export default function ChatbotScreen() {
             placeholderTextColor="#A0A0A0"
             value={inputText}
             onChangeText={setInputText}
-            multiline // 여러 줄 입력 가능
+            multiline
+            editable={!isLoading}
+            onSubmitEditing={handleSend}
           />
-          <TouchableOpacity style={styles.iconButton}>
-            <Ionicons name="mic-outline" size={24} color="#A0A0A0" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.sendButton} onPress={handleSend}>
+
+          <TouchableOpacity
+            style={[styles.sendButton, (!inputText.trim() || isLoading) && styles.sendButtonDisabled]}
+            onPress={handleSend}
+            disabled={!inputText.trim() || isLoading}
+          >
             <MaterialCommunityIcons name="send" size={24} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -201,12 +256,17 @@ export default function ChatbotScreen() {
   );
 }
 
+// ─── 스타일 ───────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
   },
-  // 헤더 스타일
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+
+  // 헤더
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -215,6 +275,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
+    backgroundColor: '#fff',
   },
   backButton: {
     padding: 5,
@@ -227,41 +288,45 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     marginRight: 8,
-    borderRadius: 14, // 원형 로고
+    borderRadius: 14,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#2F4AFF', // WorkMate 포인트 블루
+    color: '#2F4AFF',
+  },
+  headerRightSpace: {
+    width: 38,
   },
 
-  // 채팅 영역 스타일
+  // 채팅
   chatContainer: {
     flex: 1,
-    backgroundColor: '#FAFAFA', // 배경색 약간 어둡게
+    backgroundColor: '#FAFAFA',
   },
   chatContent: {
     paddingHorizontal: 15,
-    paddingVertical: 20,
+    paddingTop: 20,
+    paddingBottom: 20,
   },
   messageRow: {
     flexDirection: 'row',
     marginBottom: 15,
-    maxWidth: '80%',
+    maxWidth: '85%',
   },
   userMessageRow: {
-    alignSelf: 'flex-end', // 오른쪽 정렬
+    alignSelf: 'flex-end',
     flexDirection: 'row-reverse',
   },
   workyMessageRow: {
-    alignSelf: 'flex-start', // 왼쪽 정렬
+    alignSelf: 'flex-start',
   },
   avatar: {
     width: 36,
     height: 36,
     borderRadius: 18,
     marginRight: 8,
-    marginTop: 2, // 텍스트 첫 줄과 맞추기 위해
+    marginTop: 2,
   },
   bubble: {
     paddingHorizontal: 15,
@@ -269,16 +334,27 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   userBubble: {
-    backgroundColor: '#2F4AFF', // 진한 블루
-    borderBottomRightRadius: 5, // 뾰족한 부분
+    backgroundColor: '#2F4AFF',
+    borderBottomRightRadius: 5,
   },
   workyBubble: {
-    backgroundColor: '#E9ECFF', // 연한 퍼플 블루 (시안 반영)
-    borderTopLeftRadius: 5, // 뾰족한 부분
+    backgroundColor: '#E9ECFF',
+    borderTopLeftRadius: 5,
+  },
+  errorBubble: {
+    backgroundColor: '#FFF0F0',
+  },
+  loadingBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  loadingText: {
+    marginLeft: 8,
   },
   messageText: {
     fontSize: 15,
-    lineHeight: 20,
+    lineHeight: 22,
   },
   userText: {
     color: '#fff',
@@ -287,30 +363,47 @@ const styles = StyleSheet.create({
     color: '#333',
   },
 
-  // 리스트 답변 스타일
-  listContainer: {
+  // 참고 매뉴얼
+  referencesContainer: {
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.05)',
+    borderTopColor: 'rgba(47, 74, 255, 0.15)',
   },
-  listItemText: {
-    fontSize: 14,
-    lineHeight: 22,
+  referencesTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2F4AFF',
+    marginBottom: 6,
+  },
+  referenceItem: {
+    marginBottom: 6,
+    paddingLeft: 8,
+    borderLeftWidth: 2,
+    borderLeftColor: '#2F4AFF',
+  },
+  referenceCategoryText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#2F4AFF',
     marginBottom: 2,
   },
+  referenceContentText: {
+    fontSize: 12,
+    color: '#555',
+    lineHeight: 17,
+  },
 
-  // 입력바 스타일
+  // 입력창
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 10 : 12,
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#EDEDED',
-    // iOS 하단 여백 safe area 처리 (behavior='padding'과 함께 작용)
-    paddingBottom: Platform.OS === 'ios' ? 10 : 8, 
   },
   textInput: {
     flex: 1,
@@ -319,11 +412,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: Platform.OS === 'ios' ? 12 : 8,
     fontSize: 15,
-    maxHeight: 100, // 여러 줄 입력 시 최대 높이
+    maxHeight: 100,
     color: '#333',
-  },
-  iconButton: {
-    padding: 10,
   },
   sendButton: {
     backgroundColor: '#2F4AFF',
@@ -332,6 +422,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 5,
+    marginLeft: 8,
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#B0BAFF',
   },
 });

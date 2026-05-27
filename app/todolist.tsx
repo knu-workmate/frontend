@@ -10,13 +10,8 @@ export default function TodoListScreen() {
   // 1. 상태 관리 (State)
   // ==========================================
   
-  // 전체 할 일 목록 데이터
-  const [todos, setTodos] = useState([
-    { id: 1, date: '4월 6일 월요일', text: '제빙기 얼음 상태 확인', checked: false },
-    { id: 2, date: '4월 6일 월요일', text: '신메뉴 물류 넣기', checked: true },
-    { id: 3, date: '4월 6일 월요일', text: '물류 정리하기', checked: true },
-    { id: 4, date: '4월 12일 일요일', text: '홀 테이블 닦기', checked: false },
-  ]);
+  // 전체 할 일 목록 데이터 (예시 제거 → 빈 배열)
+  const [todos, setTodos] = useState<{ id: number; date: string; text: string; checked: boolean }[]>([]);
 
   // 바텀시트 모달 관련 상태 (열림/닫힘, 현재 수정 중인 항목의 ID)
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -49,8 +44,8 @@ export default function TodoListScreen() {
     const todayTime = new Date(2026, 3, 12).getTime(); 
     setTodos(prev => prev.filter(todo => {
       const todoTime = parseDateToTime(todo.date);
-      if (todoTime < todayTime && todo.checked) return false; // 지우기
-      return true; // 남기기
+      if (todoTime < todayTime && todo.checked) return false;
+      return true;
     }));
   }, []);
 
@@ -80,16 +75,14 @@ export default function TodoListScreen() {
     }
 
     if (editingTodoId === null) {
-      // 새 항목 추가
       const newTodo = { id: Date.now(), date: sheetDate, text: sheetText, checked: false };
       setTodos(prev => [...prev, newTodo]);
     } else {
-      // 기존 항목 수정
       setTodos(prev => prev.map(t => 
         t.id === editingTodoId ? { ...t, date: sheetDate, text: sheetText } : t
       ));
     }
-    setIsModalVisible(false); // 처리 후 모달 닫기
+    setIsModalVisible(false);
   };
 
   // 할 일 체크/체크해제 토글
@@ -105,7 +98,7 @@ export default function TodoListScreen() {
     const week = ['일', '월', '화', '수', '목', '금', '토'];
     const dayOfWeek = week[dateObj.getDay()];
     setSheetDate(`4월 ${day}일 ${dayOfWeek}요일`);
-    setShowCalendarInSheet(false); // 선택 후 달력 닫기
+    setShowCalendarInSheet(false);
   };
 
 
@@ -113,58 +106,45 @@ export default function TodoListScreen() {
   // 3. 화면 렌더링을 위한 데이터 가공
   // ==========================================
 
-  // 같은 날짜끼리 항목 묶기
   const groupedTodos = todos.reduce((acc, todo) => {
     if (!acc[todo.date]) acc[todo.date] = [];
     acc[todo.date].push(todo);
     return acc;
   }, {} as Record<string, typeof todos>);
 
-  // 보여줄 날짜 목록 추려내기 (완료된 날짜 숨기기 & 빠른 날짜순 정렬)
   const sortedDates = Object.keys(groupedTodos)
-    .filter(dateString => groupedTodos[dateString].some(todo => !todo.checked)) // 체크 안 된게 하나라도 있어야 표시
-    .sort((a, b) => parseDateToTime(a) - parseDateToTime(b)); // 오름차순 정렬
+    .filter(dateString => groupedTodos[dateString].some(todo => !todo.checked))
+    .sort((a, b) => parseDateToTime(a) - parseDateToTime(b));
 
 
   // ==========================================
   // 4. UI 렌더링 (JSX)
   // ==========================================
   return (
+    // 헤더 제거 → SafeAreaView 유지하되 헤더 View 삭제
     <SafeAreaView style={styles.safeArea}>
-      
-      {/* --- 상단 헤더 --- */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={28} color="#2F4AFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>투두리스트</Text>
-        <View style={{ width: 28 }} />
-      </View>
 
       {/* --- 메인 투두리스트 영역 --- */}
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
         {/* 할 일이 없을 때 보여주는 문구 */}
         {sortedDates.length === 0 && (
           <View style={styles.emptyView}>
-            <Text style={styles.emptyText}>모든 할 일을 완료했습니다! 🎉</Text>
+            <Text style={styles.emptyText}>할 일을 추가해보세요 ✏️</Text>
           </View>
         )}
         
         {/* 날짜별 그룹 렌더링 */}
         {sortedDates.map((dateString) => {
-          // 체크 안 된 항목이 위로, 체크 된 항목이 아래로 가도록 정렬
           const sortedTodos = groupedTodos[dateString].sort((a, b) => Number(a.checked) - Number(b.checked));
 
           return (
             <View key={dateString} style={styles.sectionContainer}>
               <Text style={styles.sectionTitle}>{dateString}</Text>
               
-              {/* 해당 날짜의 할 일 목록 렌더링 */}
               {sortedTodos.map((item) => (
                 <View key={item.id}>
                   <View style={styles.todoRow}>
                     
-                    {/* 체크박스 및 텍스트 영역 */}
                     <TouchableOpacity style={styles.todoContent} onPress={() => toggleTodo(item.id)} activeOpacity={0.7}>
                       <View style={[styles.checkbox, item.checked && styles.checkboxChecked]}>
                         {item.checked && <Ionicons name="checkmark" size={18} color="#fff" />}
@@ -174,7 +154,6 @@ export default function TodoListScreen() {
                       </Text>
                     </TouchableOpacity>
                     
-                    {/* 수정(연필) 버튼 */}
                     <TouchableOpacity style={styles.editButton} onPress={() => openModalForEdit(item)}>
                       <Ionicons name="pencil-outline" size={18} color="#AAA" />
                     </TouchableOpacity>
@@ -189,20 +168,18 @@ export default function TodoListScreen() {
       </ScrollView>
 
       {/* --- 우측 하단 글쓰기 플로팅 버튼 --- */}
+      {/* bottom 값을 80으로 올려서 갤럭시 하단 네비게이션 바에 가리지 않도록 수정 */}
       <TouchableOpacity style={styles.floatingButton} onPress={openModalForAdd}>
         <Ionicons name="add" size={32} color="#fff" />
       </TouchableOpacity>
 
       {/* --- 바텀시트 모달 영역 --- */}
       <Modal animationType="slide" transparent={true} visible={isModalVisible} onRequestClose={() => setIsModalVisible(false)}>
-        {/* 모달 뒷배경 어둡게 처리 */}
         <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setIsModalVisible(false)} />
         
-        {/* 키보드가 올라올 때 입력창이 가려지지 않게 방지 */}
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.sheetModalView}>
           <View style={styles.sheetContent}>
             
-            {/* 모달 상단 헤더 */}
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>할 일 {editingTodoId ? '수정' : '작성'}</Text>
               <TouchableOpacity onPress={() => setIsModalVisible(false)} style={styles.sheetCloseButton}>
@@ -210,10 +187,8 @@ export default function TodoListScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* 입력 폼 영역 (터치 시 키보드 유지) */}
             <ScrollView style={styles.sheetFormScroll} bounces={false} keyboardShouldPersistTaps="handled">
               
-              {/* 1. 날짜 선택 영역 */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>*날짜 선택</Text>
                 <TouchableOpacity 
@@ -226,7 +201,6 @@ export default function TodoListScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* 달력 UI (날짜 선택 시 나타남) */}
               {showCalendarInSheet && (
                 <View style={styles.calendarContainer}>
                   <View style={styles.calendarHeader}>
@@ -243,7 +217,6 @@ export default function TodoListScreen() {
                 </View>
               )}
 
-              {/* 2. 할 일 입력 영역 */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>*할 일</Text>
                 <TextInput
@@ -257,7 +230,6 @@ export default function TodoListScreen() {
 
             </ScrollView>
 
-            {/* 제출 버튼 */}
             <TouchableOpacity style={styles.submitButton} onPress={handleSheetSubmit}>
               <Text style={styles.submitButtonText}>{editingTodoId ? '수정 완료' : '추가 완료'}</Text>
             </TouchableOpacity>
@@ -273,13 +245,10 @@ export default function TodoListScreen() {
 // 5. 스타일 속성 (Styles)
 // ==========================================
 const styles = StyleSheet.create({
-  // 기존 스타일 내용은 동일하므로 생략 없이 그대로 유지
   safeArea: { flex: 1, backgroundColor: '#fff' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  backButton: { padding: 4 },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
+  // 헤더 관련 스타일 제거 (header, backButton, headerTitle)
   container: { flex: 1 },
-  contentContainer: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: 100 },
+  contentContainer: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: 120 }, // paddingBottom을 120으로 늘려 플로팅 버튼과 겹침 방지
   sectionContainer: { marginBottom: 30 },
   sectionTitle: { fontSize: 14, color: '#888', fontWeight: '600', marginBottom: 15 },
   emptyView: { alignItems: 'center', marginTop: 80 },
@@ -294,7 +263,9 @@ const styles = StyleSheet.create({
   
   editButton: { padding: 6 },
   divider: { height: 1, backgroundColor: '#F5F5F5', marginLeft: 42 },
-  floatingButton: { position: 'absolute', bottom: 30, right: 24, backgroundColor: '#2F4AFF', width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4, zIndex: 10 },
+
+  // bottom을 80으로 올려서 갤럭시 하단 네비게이션 바(약 48~60px) 위로 띄움
+  floatingButton: { position: 'absolute', bottom: 80, right: 24, backgroundColor: '#2F4AFF', width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 4, zIndex: 10 },
 
   modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
   sheetModalView: { flex: 1, justifyContent: 'flex-end' },

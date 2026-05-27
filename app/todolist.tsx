@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Modal, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Modal, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function TodoListScreen() {
   const router = useRouter();
@@ -131,6 +131,7 @@ export default function TodoListScreen() {
   // ==========================================
   return (
     <SafeAreaView style={styles.safeArea}>
+      <Stack.Screen options={{ headerShown: false }} />
       
       {/* --- 상단 헤더 --- */}
       <View style={styles.header}>

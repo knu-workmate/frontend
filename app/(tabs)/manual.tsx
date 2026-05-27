@@ -1,0 +1,702 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { apiRequest } from '../../utils/api';
+
+type ManualItem = {
+  id: number;
+  content: string;
+  createdAt: string;
+};
+
+type ManualCategory = {
+  manualId: number;
+  title: string;
+  role: string;
+  manuals: ManualItem[];
+  isExpanded: boolean;
+};
+
+const MAIN_COLOR = '#2140DC';
+const LIGHT_COLOR = '#EEF1FF';
+const BOTTOM_TAB_BAR_HEIGHT = 76;
+
+export default function ManualScreen() {
+  const insets = useSafeAreaInsets();
+  const modalBottomGap = BOTTOM_TAB_BAR_HEIGHT + Math.max(insets.bottom, 0);
+
+  const [categories, setCategories] = useState<ManualCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [myRole, setMyRole] = useState<string>('WORKER');
+
+  const [searchText, setSearchText] = useState('');
+  const [isSearchVisible, setIsSearchVisible] = useState(false);
+
+  const [openCategoryMenuId, setOpenCategoryMenuId] = useState<number | null>(null);
+  const [openItemMenuId, setOpenItemMenuId] = useState<number | null>(null);
+
+  const [isAddCategoryVisible, setIsAddCategoryVisible] = useState(false);
+  const [newCategoryTitle, setNewCategoryTitle] = useState('');
+  const [addCategoryLoading, setAddCategoryLoading] = useState(false);
+
+  const [isAddItemVisible, setIsAddItemVisible] = useState(false);
+  const [addItemCategoryId, setAddItemCategoryId] = useState<number | null>(null);
+  const [addItemCategoryName, setAddItemCategoryName] = useState('');
+  const [newItemContent, setNewItemContent] = useState('');
+  const [addItemLoading, setAddItemLoading] = useState(false);
+
+  const [isEditCategoryVisible, setIsEditCategoryVisible] = useState(false);
+  const [editCategoryId, setEditCategoryId] = useState<number | null>(null);
+  const [editCategoryTitle, setEditCategoryTitle] = useState('');
+  const [editCategoryLoading, setEditCategoryLoading] = useState(false);
+
+  const [isEditItemVisible, setIsEditItemVisible] = useState(false);
+  const [editItemId, setEditItemId] = useState<number | null>(null);
+  const [editItemCategoryId, setEditItemCategoryId] = useState<number | null>(null);
+  const [editItemContent, setEditItemContent] = useState('');
+  const [editItemLoading, setEditItemLoading] = useState(false);
+
+  const fetchMyProfile = async () => {
+    try {
+      const result = await apiRequest('/user/profile');
+      setMyRole(result.role);
+    } catch (e: any) {
+      console.log('프로필 조회 실패:', e.message);
+    }
+  };
+
+  const fetchManuals = async () => {
+    try {
+      const result = await apiRequest('/manuals/categoriesAndManuals');
+      const mapped: ManualCategory[] = (Array.isArray(result) ? result : []).map((item: any) => ({
+        manualId: item.manualId ?? item.id,
+        title: item.title ?? item.name,
+        role: item.role ?? 'WORKER',
+        manuals: item.manuals ?? [],
+        isExpanded: false,
+      }));
+      setCategories(mapped);
+    } catch (e: any) {
+      Alert.alert('목록 조회 실패', e.message || '매뉴얼을 불러오지 못했습니다.');
+    }
+  };
+
+  const loadData = async () => {
+    setLoading(true);
+    await fetchMyProfile();
+    await fetchManuals();
+    setLoading(false);
+  };
+
+  useFocusEffect(useCallback(() => { loadData(); }, []));
+
+  const toggleCategory = (id: number) => {
+    setCategories(prev =>
+      prev.map(cat => cat.manualId === id ? { ...cat, isExpanded: !cat.isExpanded } : cat)
+    );
+  };
+
+  const filteredCategories = useMemo(() => {
+    if (!searchText.trim()) return categories;
+    const keyword = searchText.toLowerCase();
+    return categories
+      .map(cat => ({
+        ...cat,
+        isExpanded: true,
+        manuals: cat.manuals.filter(item => item.content.toLowerCase().includes(keyword)),
+      }))
+      .filter(cat => cat.title.toLowerCase().includes(keyword) || cat.manuals.length > 0);
+  }, [categories, searchText]);
+
+  const handleAddCategory = async () => {
+    if (!newCategoryTitle.trim()) return;
+    setAddCategoryLoading(true);
+    try {
+      await apiRequest('/manuals/categories', {
+        method: 'POST',
+        body: JSON.stringify({ name: newCategoryTitle.trim() }),
+      });
+      setNewCategoryTitle('');
+      setIsAddCategoryVisible(false);
+      await fetchManuals();
+    } catch (e: any) {
+      if (e.message && e.message.includes('이미 동일한 이름')) {
+        Alert.alert('알림', '이미 존재하는 카테고리 이름입니다.');
+      } else {
+        Alert.alert('카테고리 생성 오류', e.message);
+      }
+    } finally {
+      setAddCategoryLoading(false);
+    }
+  };
+
+  const handleEditCategory = async () => {
+    if (!editCategoryTitle.trim() || !editCategoryId) return;
+    setEditCategoryLoading(true);
+    try {
+      await apiRequest(`/manuals/categories/${editCategoryId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: editCategoryTitle.trim() }),
+      });
+      setIsEditCategoryVisible(false);
+      await fetchManuals();
+    } catch (e: any) {
+      Alert.alert('카테고리 수정 오류', e.message);
+    } finally {
+      setEditCategoryLoading(false);
+    }
+  };
+
+  const handleDeleteCategory = (id: number) => {
+    setOpenCategoryMenuId(null);
+    Alert.alert('카테고리 삭제', '이 카테고리와 모든 항목을 삭제하시겠습니까?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '삭제', style: 'destructive',
+        onPress: async () => {
+          try {
+            await apiRequest(`/manuals/categories/${id}`, { method: 'DELETE' });
+            await fetchManuals();
+          } catch (e: any) {
+            Alert.alert('카테고리 삭제 오류', e.message);
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleAddItem = async () => {
+    if (!newItemContent.trim() || !addItemCategoryId) return;
+    setAddItemLoading(true);
+    try {
+      await apiRequest('/manuals/manuals', {
+        method: 'POST',
+        body: JSON.stringify({ content: newItemContent.trim(), categoryId: addItemCategoryId }),
+      });
+      setNewItemContent('');
+      setIsAddItemVisible(false);
+      await fetchManuals();
+    } catch (e: any) {
+      Alert.alert('소분류 추가 오류', e.message);
+    } finally {
+      setAddItemLoading(false);
+    }
+  };
+
+  const handleEditItem = async () => {
+    if (!editItemContent.trim() || !editItemId || !editItemCategoryId) return;
+    setEditItemLoading(true);
+    try {
+      await apiRequest(`/manuals/manuals/${editItemId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ content: editItemContent.trim(), categoryId: editItemCategoryId }),
+      });
+      setIsEditItemVisible(false);
+      await fetchManuals();
+    } catch (e: any) {
+      Alert.alert('소분류 수정 오류', e.message);
+    } finally {
+      setEditItemLoading(false);
+    }
+  };
+
+  const handleDeleteItem = (itemId: number) => {
+    setOpenItemMenuId(null);
+    Alert.alert('매뉴얼 삭제', '이 항목을 삭제하시겠습니까?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '삭제', style: 'destructive',
+        onPress: async () => {
+          try {
+            await apiRequest(`/manuals/manuals/${itemId}`, { method: 'DELETE' });
+            await fetchManuals();
+          } catch (e: any) {
+            Alert.alert('소분류 삭제 오류', e.message);
+          }
+        },
+      },
+    ]);
+  };
+
+  const isAdmin = myRole === 'ADMIN' || myRole?.includes('OWNER') || myRole?.includes('MANAGER');
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={MAIN_COLOR} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      {(openCategoryMenuId !== null || openItemMenuId !== null) && (
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={() => { setOpenCategoryMenuId(null); setOpenItemMenuId(null); }}
+        />
+      )}
+
+      <View style={styles.header}>
+        <View style={{ width: 36 }} />
+        <Text style={styles.headerTitle}>매뉴얼</Text>
+        <TouchableOpacity
+          style={styles.searchIconBtn}
+          onPress={() => { setIsSearchVisible(!isSearchVisible); if (isSearchVisible) setSearchText(''); }}
+        >
+          <Ionicons name={isSearchVisible ? 'close-outline' : 'search-outline'} size={22} color="#333" />
+        </TouchableOpacity>
+      </View>
+
+      {isSearchVisible && (
+        <View style={styles.searchContainer}>
+          <Ionicons name="search-outline" size={18} color="#BDBDBD" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="검색"
+            placeholderTextColor="#BDBDBD"
+            value={searchText}
+            onChangeText={setSearchText}
+            autoFocus
+          />
+          {searchText.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchText('')}>
+              <Ionicons name="close-circle" size={18} color="#BDBDBD" />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {filteredCategories.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="document-text-outline" size={52} color="#CCCCCC" />
+            <Text style={styles.emptyText}>
+              {searchText ? '검색 결과가 없습니다.' : '등록된 매뉴얼이 없습니다.'}
+            </Text>
+          </View>
+        ) : (
+          filteredCategories.map((category) => (
+            <View
+              key={category.manualId}
+              style={[styles.categoryBlock, { zIndex: openCategoryMenuId === category.manualId ? 999 : 1 }]}
+            >
+              <TouchableOpacity
+                style={styles.categoryRow}
+                onPress={() => toggleCategory(category.manualId)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.categoryLeft}>
+                  <Text style={styles.categoryTitle}>{category.title}</Text>
+                  <View style={styles.countBadge}>
+                    <Text style={styles.countBadgeText}>{category.manuals.length}</Text>
+                  </View>
+                </View>
+                <View style={styles.categoryRight}>
+                  <Ionicons
+                    name={category.isExpanded ? 'chevron-up' : 'chevron-down'}
+                    size={18}
+                    color="#888"
+                  />
+                  {isAdmin && (
+                    <TouchableOpacity
+                      style={styles.menuDotBtn}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        setOpenCategoryMenuId(openCategoryMenuId === category.manualId ? null : category.manualId);
+                        setOpenItemMenuId(null);
+                      }}
+                    >
+                      <Ionicons name="ellipsis-vertical" size={16} color="#888" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </TouchableOpacity>
+
+              {openCategoryMenuId === category.manualId && (
+                <View style={styles.categoryDropdown}>
+                  <TouchableOpacity
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setOpenCategoryMenuId(null);
+                      setEditCategoryId(category.manualId);
+                      setEditCategoryTitle(category.title);
+                      setIsEditCategoryVisible(true);
+                    }}
+                  >
+                    <Ionicons name="pencil-outline" size={15} color={MAIN_COLOR} />
+                    <Text style={styles.dropdownItemText}>수정</Text>
+                  </TouchableOpacity>
+                  <View style={styles.dropdownDivider} />
+                  <TouchableOpacity
+                    style={styles.dropdownItem}
+                    onPress={() => handleDeleteCategory(category.manualId)}
+                  >
+                    <Ionicons name="trash-outline" size={15} color="#FF3B30" />
+                    <Text style={[styles.dropdownItemText, { color: '#FF3B30' }]}>삭제</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {category.isExpanded && (
+                <View style={styles.itemList}>
+                  {category.manuals.map((item) => (
+                    <View
+                      key={item.id}
+                      style={[styles.itemRow, { zIndex: openItemMenuId === item.id ? 999 : 1 }]}
+                    >
+                      <Text style={styles.itemContent}>{item.content}</Text>
+                      {isAdmin && (
+                        <View style={{ position: 'relative' }}>
+                          <TouchableOpacity
+                            style={styles.menuDotBtn}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              setOpenItemMenuId(openItemMenuId === item.id ? null : item.id);
+                              setOpenCategoryMenuId(null);
+                            }}
+                          >
+                            <Ionicons name="ellipsis-vertical" size={16} color="#888" />
+                          </TouchableOpacity>
+                          {openItemMenuId === item.id && (
+                            <View style={styles.itemDropdown}>
+                              <TouchableOpacity
+                                style={styles.dropdownItem}
+                                onPress={() => {
+                                  setOpenItemMenuId(null);
+                                  setEditItemId(item.id);
+                                  setEditItemCategoryId(category.manualId);
+                                  setEditItemContent(item.content);
+                                  setIsEditItemVisible(true);
+                                }}
+                              >
+                                <Ionicons name="pencil-outline" size={15} color={MAIN_COLOR} />
+                                <Text style={styles.dropdownItemText}>수정</Text>
+                              </TouchableOpacity>
+                              <View style={styles.dropdownDivider} />
+                              <TouchableOpacity
+                                style={styles.dropdownItem}
+                                onPress={() => handleDeleteItem(item.id)}
+                              >
+                                <Ionicons name="trash-outline" size={15} color="#FF3B30" />
+                                <Text style={[styles.dropdownItemText, { color: '#FF3B30' }]}>삭제</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  ))}
+
+                  {isAdmin && (
+                    <TouchableOpacity
+                      style={styles.addItemBtn}
+                      onPress={() => {
+                        setAddItemCategoryId(category.manualId);
+                        setAddItemCategoryName(category.title);
+                        setNewItemContent('');
+                        setIsAddItemVisible(true);
+                      }}
+                    >
+                      <Ionicons name="add" size={18} color="#AAAAAA" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
+              <View style={styles.divider} />
+            </View>
+          ))
+        )}
+
+        {isAdmin && !searchText.trim() && (
+          <>
+            <TouchableOpacity
+              style={styles.addCategoryBtn}
+              onPress={() => { setNewCategoryTitle(''); setIsAddCategoryVisible(true); }}
+            >
+              <Ionicons name="add" size={20} color="#AAAAAA" />
+            </TouchableOpacity>
+            <View style={styles.divider} />
+          </>
+        )}
+      </ScrollView>
+
+      <Modal visible={isAddCategoryVisible} transparent animationType="slide">
+        <Pressable
+          style={[styles.modalBackdrop, { bottom: modalBottomGap }]}
+          onPress={() => setIsAddCategoryVisible(false)}
+        />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalSlide}
+        >
+          <View style={[styles.modalSlideContent, { marginBottom: modalBottomGap }]}>
+            <View style={styles.modalSlideHeader}>
+              <TouchableOpacity onPress={() => setIsAddCategoryVisible(false)}>
+                <Ionicons name="chevron-back" size={24} color="#333" />
+              </TouchableOpacity>
+              <Text style={styles.modalSlideTitle}>카테고리 추가</Text>
+              <View style={{ width: 24 }} />
+            </View>
+
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.modalScrollContent}
+            >
+              <Text style={styles.sectionBigTitle}>카테고리 추가</Text>
+              <Text style={styles.inputLabel}>*카테고리 이름</Text>
+              <TextInput
+                style={[styles.textInput, styles.textInputActive]}
+                placeholder="예) 매장운영, 고객응대"
+                placeholderTextColor="#BDBDBD"
+                value={newCategoryTitle}
+                onChangeText={setNewCategoryTitle}
+                autoFocus
+              />
+              <TouchableOpacity
+                style={[styles.confirmBtn, (!newCategoryTitle.trim() || addCategoryLoading) && { backgroundColor: '#BDBDBD' }]}
+                onPress={handleAddCategory}
+                disabled={!newCategoryTitle.trim() || addCategoryLoading}
+              >
+                {addCategoryLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>확인</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={isEditCategoryVisible} transparent animationType="slide">
+        <Pressable
+          style={[styles.modalBackdrop, { bottom: modalBottomGap }]}
+          onPress={() => setIsEditCategoryVisible(false)}
+        />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalSlide}
+        >
+          <View style={[styles.modalSlideContent, { marginBottom: modalBottomGap }]}>
+            <View style={styles.modalSlideHeader}>
+              <TouchableOpacity onPress={() => setIsEditCategoryVisible(false)}>
+                <Ionicons name="chevron-back" size={24} color="#333" />
+              </TouchableOpacity>
+              <Text style={styles.modalSlideTitle}>카테고리 수정</Text>
+              <View style={{ width: 24 }} />
+            </View>
+
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.modalScrollContent}
+            >
+              <Text style={styles.sectionBigTitle}>카테고리 수정</Text>
+              <Text style={styles.inputLabel}>*카테고리 이름</Text>
+              <TextInput
+                style={[styles.textInput, styles.textInputActive]}
+                placeholder="카테고리 이름"
+                placeholderTextColor="#BDBDBD"
+                value={editCategoryTitle}
+                onChangeText={setEditCategoryTitle}
+                autoFocus
+              />
+              <TouchableOpacity
+                style={[styles.confirmBtn, (!editCategoryTitle.trim() || editCategoryLoading) && { backgroundColor: '#BDBDBD' }]}
+                onPress={handleEditCategory}
+                disabled={!editCategoryTitle.trim() || editCategoryLoading}
+              >
+                {editCategoryLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>확인</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={isAddItemVisible} transparent animationType="slide">
+        <Pressable
+          style={[styles.modalBackdrop, { bottom: modalBottomGap }]}
+          onPress={() => setIsAddItemVisible(false)}
+        />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalSlide}
+        >
+          <View style={[styles.modalSlideContent, { marginBottom: modalBottomGap }]}>
+            <View style={styles.modalSlideHeader}>
+              <TouchableOpacity onPress={() => setIsAddItemVisible(false)}>
+                <Ionicons name="chevron-back" size={24} color="#333" />
+              </TouchableOpacity>
+              <Text style={styles.modalSlideTitle}>매뉴얼 추가</Text>
+              <View style={{ width: 24 }} />
+            </View>
+
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.modalScrollContent}
+            >
+              <Text style={styles.sectionBigTitle}>매뉴얼 추가</Text>
+              <Text style={styles.inputLabel}>*카테고리</Text>
+              <View style={styles.categorySelectDisplay}>
+                <Text style={styles.categorySelectText}>{addItemCategoryName}</Text>
+              </View>
+              <Text style={styles.inputLabel}>*설명</Text>
+              <TextInput
+                style={[styles.textInput, { minHeight: 120, textAlignVertical: 'top' }]}
+                placeholder="매뉴얼 내용을 입력하세요"
+                placeholderTextColor="#BDBDBD"
+                value={newItemContent}
+                onChangeText={setNewItemContent}
+                multiline
+                autoFocus
+                scrollEnabled={false}
+              />
+              <TouchableOpacity
+                style={[styles.confirmBtn, (!newItemContent.trim() || addItemLoading) && { backgroundColor: '#BDBDBD' }]}
+                onPress={handleAddItem}
+                disabled={!newItemContent.trim() || addItemLoading}
+              >
+                {addItemLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>확인</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={isEditItemVisible} transparent animationType="slide">
+        <Pressable
+          style={[styles.modalBackdrop, { bottom: modalBottomGap }]}
+          onPress={() => setIsEditItemVisible(false)}
+        />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalSlide}
+        >
+          <View style={[styles.modalSlideContent, { marginBottom: modalBottomGap }]}>
+            <View style={styles.modalSlideHeader}>
+              <TouchableOpacity onPress={() => setIsEditItemVisible(false)}>
+                <Ionicons name="chevron-back" size={24} color="#333" />
+              </TouchableOpacity>
+              <Text style={styles.modalSlideTitle}>매뉴얼 수정</Text>
+              <View style={{ width: 24 }} />
+            </View>
+
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.modalScrollContent}
+            >
+              <Text style={styles.sectionBigTitle}>매뉴얼 수정</Text>
+              <Text style={styles.inputLabel}>*설명</Text>
+              <TextInput
+                style={[styles.textInput, { minHeight: 120, textAlignVertical: 'top' }]}
+                placeholder="매뉴얼 내용"
+                placeholderTextColor="#BDBDBD"
+                value={editItemContent}
+                onChangeText={setEditItemContent}
+                multiline
+                autoFocus
+                scrollEnabled={false}
+              />
+              <TouchableOpacity
+                style={[styles.confirmBtn, (!editItemContent.trim() || editItemLoading) && { backgroundColor: '#BDBDBD' }]}
+                onPress={handleEditItem}
+                disabled={!editItemContent.trim() || editItemLoading}
+              >
+                {editItemLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.confirmBtnText}>확인</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111' },
+  searchIconBtn: { width: 36, alignItems: 'flex-end' },
+  searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 10, marginHorizontal: 20, marginTop: 10, marginBottom: 4, paddingHorizontal: 12, height: 42, gap: 8 },
+  searchInput: { flex: 1, fontSize: 15, color: '#333' },
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 100 },
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', marginTop: 80, gap: 12 },
+  emptyText: { fontSize: 14, color: '#AAAAAA' },
+  addCategoryBtn: { alignItems: 'center', justifyContent: 'center', paddingVertical: 10, minHeight: 38 },
+  divider: { height: 1, backgroundColor: '#E6E6E6', marginTop: 8, marginBottom: 8 },
+  categoryBlock: { position: 'relative', marginBottom: 0 },
+  categoryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 16, backgroundColor: '#F5F6F8', borderRadius: 10 },
+  categoryLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 },
+  categoryTitle: { fontSize: 15, fontWeight: '600', color: '#222' },
+  countBadge: { backgroundColor: MAIN_COLOR, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 2, minWidth: 24, alignItems: 'center' },
+  countBadgeText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
+  categoryRight: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  menuDotBtn: { padding: 6 },
+  categoryDropdown: { position: 'absolute', right: 0, top: 52, backgroundColor: '#FFF', borderRadius: 10, borderWidth: 1, borderColor: '#EFEFEF', zIndex: 100, elevation: 10, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, minWidth: 100 },
+  itemList: { paddingLeft: 0, paddingBottom: 4, marginTop: 4 },
+  itemRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, paddingHorizontal: 14, marginBottom: 6, backgroundColor: LIGHT_COLOR, borderRadius: 10, position: 'relative' },
+  itemContent: { fontSize: 14, color: '#333', flex: 1, lineHeight: 20, marginRight: 8 },
+  itemDropdown: { position: 'absolute', right: 0, top: 28, backgroundColor: '#FFF', borderRadius: 10, borderWidth: 1, borderColor: '#EFEFEF', zIndex: 100, elevation: 10, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, minWidth: 100 },
+  addItemBtn: { alignItems: 'center', justifyContent: 'center', paddingVertical: 10, backgroundColor: LIGHT_COLOR, borderRadius: 10, marginBottom: 4 },
+  dropdownItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 14, gap: 8 },
+  dropdownItemText: { fontSize: 14, color: '#333', fontWeight: '500' },
+  dropdownDivider: { height: 1, backgroundColor: '#F5F5F5' },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  modalSlide: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalSlideContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: Platform.OS === 'android' ? 24 : 40,
+    maxHeight: '72%',
+  },
+  modalScrollContent: {
+    paddingBottom: 24,
+  },
+  modalSlideHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 },
+  modalSlideTitle: { fontSize: 16, fontWeight: 'bold', color: '#111' },
+  sectionBigTitle: { fontSize: 22, fontWeight: 'bold', color: '#111', marginBottom: 24 },
+  inputLabel: { fontSize: 13, fontWeight: '600', color: '#333', marginBottom: 8 },
+  textInput: { borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 10, padding: 14, fontSize: 15, color: '#111', marginBottom: 16, backgroundColor: '#FAFAFA' },
+  textInputActive: { borderColor: MAIN_COLOR, backgroundColor: '#FFF' },
+  categorySelectDisplay: { borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 10, padding: 14, marginBottom: 16, backgroundColor: '#F5F5F5' },
+  categorySelectText: { fontSize: 15, color: '#666' },
+  confirmBtn: { backgroundColor: MAIN_COLOR, paddingVertical: 16, borderRadius: 14, alignItems: 'center', marginTop: 8 },
+  confirmBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+});

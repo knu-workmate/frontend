@@ -4,14 +4,6 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { apiRequest } from './api';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
 
 export async function registerForPushNotificationsAsync() {
   try {

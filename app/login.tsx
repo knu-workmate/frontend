@@ -14,6 +14,36 @@ import { apiRequest, publicRequest } from '../utils/api';
 import { registerForPushNotificationsAsync } from '../utils/registerForPushNotifications';
 import { saveAccessToken } from '../utils/tokenStorage';
 
+function getLoginErrorMessage(error: any) {
+  const message = String(error?.message || error || '');
+
+  if (!message) {
+    return '알 수 없는 오류가 발생했습니다.';
+  }
+
+  if (message.includes('401')) {
+    return `로그인 인증 실패입니다.\n\n서버 응답:\n${message}`;
+  }
+
+  if (
+    message.includes('Network request failed') ||
+    message.includes('Failed to fetch') ||
+    message.includes('Network Error')
+  ) {
+    return `서버에 연결하지 못했습니다.\n\n서버 주소, 인터넷 연결, HTTP 허용 설정을 확인해주세요.\n\n상세 오류:\n${message}`;
+  }
+
+  if (message.includes('404')) {
+    return `로그인 API 주소를 찾을 수 없습니다.\n\nAPI 경로 또는 서버 주소를 확인해주세요.\n\n상세 오류:\n${message}`;
+  }
+
+  if (message.includes('500')) {
+    return `서버 내부 오류가 발생했습니다.\n\n백엔드 서버 상태를 확인해주세요.\n\n상세 오류:\n${message}`;
+  }
+
+  return `로그인 중 오류가 발생했습니다.\n\n상세 오류:\n${message}`;
+}
+
 export default function LoginScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -44,7 +74,15 @@ export default function LoginScreen() {
       await saveAccessToken(result.accessToken);
       console.log('로그인 성공, 토큰 저장 완료');
 
-      await registerForPushNotificationsAsync();
+      try {
+        await registerForPushNotificationsAsync();
+        console.log('로그인 직후 Expo Push Token 등록 시도 완료');
+      } catch (pushError: any) {
+        console.log(
+          '로그인은 성공했지만 Expo Push Token 등록 실패:',
+          pushError?.message || pushError
+        );
+      }
 
       try {
         const workplaceInfo = await apiRequest('/workplace/info');
@@ -59,7 +97,7 @@ export default function LoginScreen() {
           return;
         }
       } catch (error: any) {
-        console.log('사업장 정보 없음:', error.message);
+        console.log('사업장 정보 없음:', error?.message || error);
       }
 
       if (role === 'owner') {
@@ -68,8 +106,12 @@ export default function LoginScreen() {
         router.replace('/workplace-join');
       }
     } catch (error: any) {
-      console.log('로그인 실패:', error.message);
-      Alert.alert('로그인 실패', '이메일 또는 비밀번호를 확인해주세요.');
+      const loginErrorMessage = getLoginErrorMessage(error);
+
+      console.log('로그인 실패 전체:', error);
+      console.log('로그인 실패 메시지:', error?.message || error);
+
+      Alert.alert('로그인 실패', loginErrorMessage);
     } finally {
       setLoading(false);
     }

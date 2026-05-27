@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -13,6 +13,10 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiRequest } from '../../utils/api';
+import {
+  registerForPushNotificationsAsync,
+  sendTestPushNotificationAsync,
+} from '../../utils/registerForPushNotifications';
 
 import WORKY_LOGO from '../../assets/images/worky_logo.png';
 
@@ -232,6 +236,26 @@ export default function HomeScreen() {
     }
   };
 
+  const syncPushToken = async () => {
+    try {
+      await registerForPushNotificationsAsync();
+      console.log('메인 화면 진입 시 Expo Push Token 등록 시도 완료');
+    } catch (error: any) {
+      console.log(
+        '메인 화면 Expo Push Token 등록 실패:',
+        error?.message || error
+      );
+    }
+  };
+
+  const handleTestNotification = async () => {
+    try {
+      await sendTestPushNotificationAsync();
+    } catch (error: any) {
+      console.log('테스트 알림 버튼 실행 실패:', error?.message || error);
+    }
+  };
+
   const loadUnreadCount = async () => {
     try {
       const unreadResult = await apiRequest('/api/notifications/unread-count');
@@ -397,12 +421,9 @@ export default function HomeScreen() {
     }
   };
 
-  useEffect(() => {
-    loadHomeData();
-  }, []);
-
   useFocusEffect(
     useCallback(() => {
+      syncPushToken();
       loadHomeData();
     }, [])
   );
@@ -501,6 +522,17 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        <TouchableOpacity
+          style={styles.testNotificationButton}
+          onPress={handleTestNotification}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="paper-plane-outline" size={17} color="#FFFFFF" />
+          <Text style={styles.testNotificationButtonText}>
+            테스트 알림 보내기
+          </Text>
+        </TouchableOpacity>
 
         <View style={styles.noticeSection}>
           <Text style={styles.noticeTitle}>공지사항</Text>
@@ -727,7 +759,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 0,
-    marginBottom: 38,
+    marginBottom: 22,
   },
 
   menuItem: {
@@ -748,6 +780,23 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 13,
     color: '#555555',
+  },
+
+  testNotificationButton: {
+    backgroundColor: MAIN_COLOR,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    flexDirection: 'row',
+  },
+
+  testNotificationButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    marginLeft: 6,
   },
 
   noticeSection: {

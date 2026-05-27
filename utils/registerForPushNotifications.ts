@@ -4,6 +4,15 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { apiRequest } from './api';
 
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
 export async function registerForPushNotificationsAsync() {
   try {
     if (!Device.isDevice) {
@@ -64,6 +73,30 @@ export async function registerForPushNotificationsAsync() {
     return pushToken;
   } catch (error: any) {
     console.log('Expo Push Token 등록 실패:', error?.message || error);
+    return null;
+  }
+}
+export async function sendTestPushNotificationAsync() {
+  try {
+    const pushToken = await registerForPushNotificationsAsync();
+
+    if (!pushToken) {
+      console.log('테스트 알림 실패: Expo Push Token 없음');
+      return null;
+    }
+
+    const result = await apiRequest('/api/expo/test', {
+      method: 'POST',
+      body: JSON.stringify({
+        token: pushToken,
+      }),
+    });
+
+    console.log('테스트 알림 성공:', result);
+
+    return result;
+  } catch (error: any) {
+    console.log('테스트 알림 실패:', error?.message || error);
     return null;
   }
 }

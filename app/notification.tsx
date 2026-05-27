@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Notifications from 'expo-notifications';
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -152,6 +153,25 @@ export default function NotificationScreen() {
       loadNotifications();
     }, [])
   );
+
+  useEffect(() => {
+    const receivedSubscription =
+      Notifications.addNotificationReceivedListener(() => {
+        console.log('푸시 알림 수신됨 → 알림 목록 새로고침');
+        loadNotifications();
+      });
+
+    const responseSubscription =
+      Notifications.addNotificationResponseReceivedListener(() => {
+        console.log('푸시 알림 클릭됨 → 알림 목록 새로고침');
+        loadNotifications();
+      });
+
+    return () => {
+      receivedSubscription.remove();
+      responseSubscription.remove();
+    };
+  }, []);
 
   const renderItem: ListRenderItem<NotificationItem> = ({ item }) => {
     return (

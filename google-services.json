@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1093995397076",
+    "project_id": "workmate-5e3e1",
+    "storage_bucket": "workmate-5e3e1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1093995397076:android:8e4da8b71d24395c4da041",
+        "android_client_info": {
+          "package_name": "com.yeojini.workmate"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBV5cOeg8vYQkCQUOTYxtHHCYh1mrHmX0s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

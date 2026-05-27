@@ -1,11 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
-import React from 'react';
+import * as Notifications from 'expo-notifications';
+import { Tabs, useRouter } from 'expo-router';
+import React, { useEffect } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 type TabItemProps = {
   focused: boolean;
@@ -33,6 +43,14 @@ function TabBarItem({ focused, icon, activeIcon, label }: TabItemProps) {
 
 function TabsContent() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener(() => {
+      router.push('/notification');
+    });
+    return () => subscription.remove();
+  }, []);
 
   return (
     <Tabs

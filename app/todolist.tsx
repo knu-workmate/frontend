@@ -2,12 +2,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+<<<<<<< HEAD
+=======
 
 // 각 월의 일수 반환
 const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
 
 // 해당 월 1일의 요일 반환 (0=일, 1=월 ...)
 const getFirstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
+>>>>>>> origin/dev
 
 export default function TodoListScreen() {
   const router = useRouter();
@@ -149,8 +152,13 @@ export default function TodoListScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <Stack.Screen options={{ headerShown: false }} />
+<<<<<<< HEAD
+      
+      {/* --- 상단 헤더 --- */}
+=======
 
       {/* --- 상단 헤더 (복원) --- */}
+>>>>>>> origin/dev
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="chevron-back" size={28} color="#2F4AFF" />

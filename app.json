@@ -2,7 +2,7 @@
   "expo": {
     "name": "workmate",
     "slug": "workmate",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "workmate",
@@ -19,7 +19,10 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.yeojini.workmate",
+      "googleServicesFile": "./google-services.json",
+      "versionCode": 2
     },
     "web": {
       "output": "static",
@@ -39,11 +42,26 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-notifications",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2af7a6e1-f331-4eaf-9845-ba20e4664090"
+      }
     }
   }
 }

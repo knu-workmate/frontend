@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -13,6 +13,10 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiRequest } from '../../utils/api';
+import {
+  registerForPushNotificationsAsync,
+  sendTestPushNotificationAsync,
+} from '../../utils/registerForPushNotifications';
 
 import WORKY_LOGO from '../../assets/images/worky_logo.png';
 
@@ -154,6 +158,7 @@ export default function HomeScreen() {
 
   const [avatarColor, setAvatarColor] = useState(MAIN_COLOR);
   const [noticeList, setNoticeList] = useState<Notice[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const menuItems = [
@@ -228,6 +233,43 @@ export default function HomeScreen() {
     } catch (e) {
       console.log('색상 불러오기 오류:', e);
       setAvatarColor(MAIN_COLOR);
+    }
+  };
+
+  const syncPushToken = async () => {
+    try {
+      await registerForPushNotificationsAsync();
+      console.log('메인 화면 진입 시 Expo Push Token 등록 시도 완료');
+    } catch (error: any) {
+      console.log(
+        '메인 화면 Expo Push Token 등록 실패:',
+        error?.message || error
+      );
+    }
+  };
+
+  const handleTestNotification = async () => {
+    try {
+      await sendTestPushNotificationAsync();
+    } catch (error: any) {
+      console.log('테스트 알림 버튼 실행 실패:', error?.message || error);
+    }
+  };
+
+  const loadUnreadCount = async () => {
+    try {
+      const unreadResult = await apiRequest('/api/notifications/unread-count');
+
+      const count = Number(unreadResult?.unreadCount ?? 0);
+
+      if (Number.isNaN(count)) {
+        setUnreadCount(0);
+      } else {
+        setUnreadCount(count);
+      }
+    } catch (error: any) {
+      console.log('안 읽은 알림 개수 조회 실패:', error?.message || error);
+      setUnreadCount(0);
     }
   };
 
@@ -311,6 +353,7 @@ export default function HomeScreen() {
     }
 
     await loadTodayWork();
+    await loadUnreadCount();
 
     try {
       const boardsResult = await apiRequest('/boards/my');
@@ -378,12 +421,9 @@ export default function HomeScreen() {
     }
   };
 
-  useEffect(() => {
-    loadHomeData();
-  }, []);
-
   useFocusEffect(
     useCallback(() => {
+      syncPushToken();
       loadHomeData();
     }, [])
   );
@@ -415,8 +455,20 @@ export default function HomeScreen() {
             <Text style={styles.userNameText}>{userData.name}</Text>
           </View>
 
-          <TouchableOpacity onPress={() => router.push('/notification')}>
+          <TouchableOpacity
+            style={styles.notificationButton}
+            onPress={() => router.push('/notification')}
+            activeOpacity={0.75}
+          >
             <Ionicons name="notifications-outline" size={26} color={MAIN_COLOR} />
+
+            {unreadCount > 0 && (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadBadgeText}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -470,6 +522,17 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        <TouchableOpacity
+          style={styles.testNotificationButton}
+          onPress={handleTestNotification}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="paper-plane-outline" size={17} color="#FFFFFF" />
+          <Text style={styles.testNotificationButtonText}>
+            테스트 알림 보내기
+          </Text>
+        </TouchableOpacity>
 
         <View style={styles.noticeSection}>
           <Text style={styles.noticeTitle}>공지사항</Text>
@@ -600,6 +663,35 @@ const styles = StyleSheet.create({
     color: '#222222',
   },
 
+  notificationButton: {
+    width: 34,
+    height: 34,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+
+  unreadBadge: {
+    position: 'absolute',
+    top: 1,
+    right: 0,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FF3B30',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+  },
+
+  unreadBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: 'bold',
+  },
+
   profileCard: {
     backgroundColor: MAIN_COLOR,
     paddingHorizontal: 22,
@@ -667,7 +759,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 0,
-    marginBottom: 38,
+    marginBottom: 22,
   },
 
   menuItem: {
@@ -688,6 +780,23 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 13,
     color: '#555555',
+  },
+
+  testNotificationButton: {
+    backgroundColor: MAIN_COLOR,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    flexDirection: 'row',
+  },
+
+  testNotificationButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    marginLeft: 6,
   },
 
   noticeSection: {

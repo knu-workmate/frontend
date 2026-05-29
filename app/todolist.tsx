@@ -132,6 +132,13 @@ export default function TodoListScreen() {
     .sort((a, b) => parseDateToTime(a) - parseDateToTime(b));
 
   // 달력 렌더링용 데이터
+ const getDaysInMonth = (year: number, month: number) => {
+  return new Date(year, month + 1, 0).getDate();
+};
+
+const getFirstDayOfMonth = (year: number, month: number) => {
+  return new Date(year, month, 1).getDay();
+};
   const daysInMonth = getDaysInMonth(calYear, calMonth);
   const firstDay = getFirstDayOfMonth(calYear, calMonth);
   const calDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);

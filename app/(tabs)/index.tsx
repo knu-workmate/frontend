@@ -13,10 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiRequest } from '../../utils/api';
-import {
-  registerForPushNotificationsAsync,
-  sendTestPushNotificationAsync,
-} from '../../utils/registerForPushNotifications';
+import { registerForPushNotificationsAsync } from '../../utils/registerForPushNotifications';
 
 import WORKY_LOGO from '../../assets/images/worky_logo.png';
 
@@ -245,14 +242,6 @@ export default function HomeScreen() {
         '메인 화면 Expo Push Token 등록 실패:',
         error?.message || error
       );
-    }
-  };
-
-  const handleTestNotification = async () => {
-    try {
-      await sendTestPushNotificationAsync();
-    } catch (error: any) {
-      console.log('테스트 알림 버튼 실행 실패:', error?.message || error);
     }
   };
 
@@ -523,17 +512,6 @@ export default function HomeScreen() {
           ))}
         </View>
 
-        <TouchableOpacity
-          style={styles.testNotificationButton}
-          onPress={handleTestNotification}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="paper-plane-outline" size={17} color="#FFFFFF" />
-          <Text style={styles.testNotificationButtonText}>
-            테스트 알림 보내기
-          </Text>
-        </TouchableOpacity>
-
         <View style={styles.noticeSection}>
           <Text style={styles.noticeTitle}>공지사항</Text>
 
@@ -780,23 +758,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 13,
     color: '#555555',
-  },
-
-  testNotificationButton: {
-    backgroundColor: MAIN_COLOR,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-    flexDirection: 'row',
-  },
-
-  testNotificationButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-    marginLeft: 6,
   },
 
   noticeSection: {

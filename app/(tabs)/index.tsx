@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiRequest } from '../../utils/api';
+import { registerForPushNotificationsAsync } from '../../utils/registerForPushNotifications';
 
 import WORKY_LOGO from '../../assets/images/worky_logo.png';
 
@@ -154,6 +155,7 @@ export default function HomeScreen() {
 
   const [avatarColor, setAvatarColor] = useState(MAIN_COLOR);
   const [noticeList, setNoticeList] = useState<Notice[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const menuItems = [
@@ -191,9 +193,34 @@ export default function HomeScreen() {
     return '알바생';
   };
 
-  const loadAvatarColor = async () => {
+  const getAvatarColorKey = (
+    profileUserId?: number | null,
+    profileEmail?: string
+  ) => {
+    if (profileUserId !== null && profileUserId !== undefined) {
+      return `avatarColor_${profileUserId}`;
+    }
+
+    if (profileEmail) {
+      return `avatarColor_${profileEmail}`;
+    }
+
+    return null;
+  };
+
+  const loadAvatarColor = async (
+    profileUserId?: number | null,
+    profileEmail?: string
+  ) => {
     try {
-      const savedColor = await AsyncStorage.getItem('avatarColor');
+      const key = getAvatarColorKey(profileUserId, profileEmail);
+
+      if (!key) {
+        setAvatarColor(MAIN_COLOR);
+        return;
+      }
+
+      const savedColor = await AsyncStorage.getItem(key);
 
       if (savedColor !== null) {
         setAvatarColor(savedColor);
@@ -202,6 +229,36 @@ export default function HomeScreen() {
       }
     } catch (e) {
       console.log('색상 불러오기 오류:', e);
+      setAvatarColor(MAIN_COLOR);
+    }
+  };
+
+  const syncPushToken = async () => {
+    try {
+      await registerForPushNotificationsAsync();
+      console.log('메인 화면 진입 시 Expo Push Token 등록 시도 완료');
+    } catch (error: any) {
+      console.log(
+        '메인 화면 Expo Push Token 등록 실패:',
+        error?.message || error
+      );
+    }
+  };
+
+  const loadUnreadCount = async () => {
+    try {
+      const unreadResult = await apiRequest('/api/notifications/unread-count');
+
+      const count = Number(unreadResult?.unreadCount ?? 0);
+
+      if (Number.isNaN(count)) {
+        setUnreadCount(0);
+      } else {
+        setUnreadCount(count);
+      }
+    } catch (error: any) {
+      console.log('안 읽은 알림 개수 조회 실패:', error?.message || error);
+      setUnreadCount(0);
     }
   };
 
@@ -245,6 +302,9 @@ export default function HomeScreen() {
     try {
       const profileResult = await apiRequest('/user/profile');
 
+      const profileUserId = profileResult?.id ?? profileResult?.userId ?? null;
+      const profileEmail = profileResult?.email ?? '';
+
       setUserData((prev) => ({
         ...prev,
         name: profileResult?.name ?? profileResult?.nickname ?? '사용자',
@@ -256,8 +316,15 @@ export default function HomeScreen() {
             profileResult?.admin
         ),
       }));
+
+      if (profileResult?.avatarColor) {
+        setAvatarColor(profileResult.avatarColor);
+      } else {
+        await loadAvatarColor(profileUserId, profileEmail);
+      }
     } catch (error: any) {
       console.log('프로필 조회 실패:', error.message);
+      setAvatarColor(MAIN_COLOR);
     }
 
     try {
@@ -275,6 +342,7 @@ export default function HomeScreen() {
     }
 
     await loadTodayWork();
+    await loadUnreadCount();
 
     try {
       const boardsResult = await apiRequest('/boards/my');
@@ -342,14 +410,9 @@ export default function HomeScreen() {
     }
   };
 
-  useEffect(() => {
-    loadAvatarColor();
-    loadHomeData();
-  }, []);
-
   useFocusEffect(
     useCallback(() => {
-      loadAvatarColor();
+      syncPushToken();
       loadHomeData();
     }, [])
   );
@@ -381,8 +444,20 @@ export default function HomeScreen() {
             <Text style={styles.userNameText}>{userData.name}</Text>
           </View>
 
-          <TouchableOpacity onPress={() => router.push('/notification')}>
+          <TouchableOpacity
+            style={styles.notificationButton}
+            onPress={() => router.push('/notification')}
+            activeOpacity={0.75}
+          >
             <Ionicons name="notifications-outline" size={26} color={MAIN_COLOR} />
+
+            {unreadCount > 0 && (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadBadgeText}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -566,6 +641,35 @@ const styles = StyleSheet.create({
     color: '#222222',
   },
 
+  notificationButton: {
+    width: 34,
+    height: 34,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+
+  unreadBadge: {
+    position: 'absolute',
+    top: 1,
+    right: 0,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FF3B30',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+  },
+
+  unreadBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: 'bold',
+  },
+
   profileCard: {
     backgroundColor: MAIN_COLOR,
     paddingHorizontal: 22,
@@ -633,7 +737,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 0,
-    marginBottom: 38,
+    marginBottom: 22,
   },
 
   menuItem: {

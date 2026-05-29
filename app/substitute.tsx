@@ -5,8 +5,9 @@ import {
   Platform, ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, Stack } from 'expo-router';
 import { apiRequest } from '../utils/api';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type SubstituteType = {
   substituteId: number;
@@ -90,6 +91,7 @@ const getStatusColor = (status: string) => {
 
 export default function SubstituteScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [myRole, setMyRole] = useState<string | null>(null);
   const [myName, setMyName] = useState<string>('');
@@ -273,6 +275,7 @@ export default function SubstituteScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
+        <Stack.Screen options={{ headerShown: false }} />  
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2F4AFF" />
         </View>
@@ -284,6 +287,7 @@ export default function SubstituteScreen() {
   if (myRole === 'ADMIN' || myRole?.includes('OWNER') || myRole?.includes('MANAGER')) {
     return (
       <SafeAreaView style={styles.safeArea}>
+        <Stack.Screen options={{ headerShown: false }} /> 
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="chevron-back" size={28} color="#2F4AFF" />
@@ -292,7 +296,9 @@ export default function SubstituteScreen() {
           <View style={{ width: 28 }} />
         </View>
 
-        <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+        <ScrollView style={styles.container} contentContainerStyle={[
+  styles.contentContainer,
+  { paddingBottom: Math.max(insets.bottom + 80, 100) } ]}>
           {pendingList.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="checkmark-circle-outline" size={48} color="#BDBDBD" />
@@ -369,6 +375,7 @@ export default function SubstituteScreen() {
   // 알바생 화면 (대타 목록 및 신청)
   return (
     <SafeAreaView style={styles.safeArea}>
+      <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="chevron-back" size={28} color="#2F4AFF" />
@@ -377,7 +384,9 @@ export default function SubstituteScreen() {
         <View style={{ width: 28 }} />
       </View>
 
-      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      <ScrollView style={styles.container} contentContainerStyle={[
+  styles.contentContainer,
+  { paddingBottom: Math.max(insets.bottom + 80, 100) } ]}>
         <Text style={styles.sectionTitle}>지원 가능한 대타 목록</Text>
 
         {availableList.length === 0 ? (
@@ -418,7 +427,9 @@ export default function SubstituteScreen() {
         )}
       </ScrollView>
 
-      <TouchableOpacity style={styles.floatingButton} onPress={() => {
+      <TouchableOpacity style={[
+    styles.floatingButton,
+    { bottom: Math.max(insets.bottom + 16, 30) } ]} onPress={() => {
         setSelectedScheduleId(null);
         setNote('');
         setIsModalVisible(true);

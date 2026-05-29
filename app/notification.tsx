@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -90,6 +90,10 @@ export default function NotificationScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  const handleGoHome = () => {
+    router.replace('/(tabs)');
+  };
 
   const loadNotifications = async () => {
     try {
@@ -236,65 +240,73 @@ export default function NotificationScreen() {
 
   if (loading) {
     return (
+      <>
+        <Stack.Screen options={{ headerShown: false }} />
+
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={handleGoHome} style={styles.backButton}>
+              <Ionicons name="chevron-back" size={24} color="#000000" />
+            </TouchableOpacity>
+
+            <Text style={styles.headerTitle}>알림</Text>
+
+            <View style={styles.headerRightSpace} />
+          </View>
+
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={MAIN_COLOR} />
+            <Text style={styles.loadingText}>알림을 불러오는 중...</Text>
+          </View>
+        </SafeAreaView>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={handleGoHome} style={styles.backButton}>
             <Ionicons name="chevron-back" size={24} color="#000000" />
           </TouchableOpacity>
 
           <Text style={styles.headerTitle}>알림</Text>
 
-          <View style={styles.headerRightSpace} />
+          <TouchableOpacity onPress={loadNotifications} style={styles.refreshButton}>
+            <Ionicons name="refresh-outline" size={22} color={MAIN_COLOR} />
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={MAIN_COLOR} />
-          <Text style={styles.loadingText}>알림을 불러오는 중...</Text>
-        </View>
+        {errorMessage ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          </View>
+        ) : null}
+
+        <FlatList
+          data={notifications}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={renderItem}
+          contentContainerStyle={[
+            styles.listContainer,
+            notifications.length === 0 ? styles.emptyListContainer : null,
+          ]}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={renderEmptyComponent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={MAIN_COLOR}
+              colors={[MAIN_COLOR]}
+            />
+          }
+        />
       </SafeAreaView>
-    );
-  }
-
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={24} color="#000000" />
-        </TouchableOpacity>
-
-        <Text style={styles.headerTitle}>알림</Text>
-
-        <TouchableOpacity onPress={loadNotifications} style={styles.refreshButton}>
-          <Ionicons name="refresh-outline" size={22} color={MAIN_COLOR} />
-        </TouchableOpacity>
-      </View>
-
-      {errorMessage ? (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{errorMessage}</Text>
-        </View>
-      ) : null}
-
-      <FlatList
-        data={notifications}
-        keyExtractor={(item) => String(item.id)}
-        renderItem={renderItem}
-        contentContainerStyle={[
-          styles.listContainer,
-          notifications.length === 0 ? styles.emptyListContainer : null,
-        ]}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={renderEmptyComponent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={MAIN_COLOR}
-            colors={[MAIN_COLOR]}
-          />
-        }
-      />
-    </SafeAreaView>
+    </>
   );
 }
 

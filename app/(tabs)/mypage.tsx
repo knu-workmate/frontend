@@ -228,6 +228,18 @@ export default function MyPageScreen() {
     return Array.from(map.values());
   };
 
+  const deleteExpoPushTokenOnLogout = async () => {
+    try {
+      await apiRequest('/api/expo/push-token', {
+        method: 'DELETE',
+      });
+
+      console.log('Expo Push Token 삭제 성공');
+    } catch (error: any) {
+      console.log('Expo Push Token 삭제 실패:', error?.message || error);
+    }
+  };
+
   const loadProfile = async () => {
     try {
       const result = await apiRequest('/user/profile');
@@ -487,9 +499,13 @@ export default function MyPageScreen() {
         text: '로그아웃',
         style: 'destructive',
         onPress: async () => {
-          await deleteAccessToken();
-          Alert.alert('안내', '로그아웃 되었습니다.');
-          router.replace('/role-select');
+          try {
+            await deleteExpoPushTokenOnLogout();
+          } finally {
+            await deleteAccessToken();
+            Alert.alert('안내', '로그아웃 되었습니다.');
+            router.replace('/role-select');
+          }
         },
       },
     ]);
@@ -580,6 +596,8 @@ export default function MyPageScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              await deleteExpoPushTokenOnLogout();
+              
               await apiRequest('/auth/withdraw', {
                 method: 'DELETE',
               });

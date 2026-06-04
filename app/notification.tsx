@@ -6,13 +6,15 @@ import {
   ActivityIndicator,
   FlatList,
   ListRenderItem,
+  Platform,
   RefreshControl,
-  SafeAreaView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiRequest } from '../utils/api';
 
 const MAIN_COLOR = '#2140DC';
@@ -85,11 +87,18 @@ function normalizeNotificationList(data: any): NotificationItem[] {
 
 export default function NotificationScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  const androidStatusBarHeight =
+    Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 0;
+
+  const topSafePadding =
+    insets.top > 0 ? insets.top : androidStatusBarHeight;
 
   const handleGoHome = () => {
     router.replace('/(tabs)');
@@ -214,7 +223,9 @@ export default function NotificationScreen() {
             </Text>
           ) : null}
 
-          <Text style={styles.time}>{formatNotificationTime(item.createdAt)}</Text>
+          <Text style={styles.time}>
+            {formatNotificationTime(item.createdAt)}
+          </Text>
         </View>
 
         {!item.isRead && <View style={styles.unreadDot} />}
@@ -243,7 +254,7 @@ export default function NotificationScreen() {
       <>
         <Stack.Screen options={{ headerShown: false }} />
 
-        <SafeAreaView style={styles.safeArea}>
+        <View style={[styles.safeArea, { paddingTop: topSafePadding }]}>
           <View style={styles.header}>
             <TouchableOpacity onPress={handleGoHome} style={styles.backButton}>
               <Ionicons name="chevron-back" size={24} color="#000000" />
@@ -258,7 +269,7 @@ export default function NotificationScreen() {
             <ActivityIndicator size="large" color={MAIN_COLOR} />
             <Text style={styles.loadingText}>알림을 불러오는 중...</Text>
           </View>
-        </SafeAreaView>
+        </View>
       </>
     );
   }
@@ -267,7 +278,7 @@ export default function NotificationScreen() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <SafeAreaView style={styles.safeArea}>
+      <View style={[styles.safeArea, { paddingTop: topSafePadding }]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={handleGoHome} style={styles.backButton}>
             <Ionicons name="chevron-back" size={24} color="#000000" />
@@ -305,7 +316,7 @@ export default function NotificationScreen() {
             />
           }
         />
-      </SafeAreaView>
+      </View>
     </>
   );
 }
